@@ -32,8 +32,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Trained ML artifacts (generate with train_diabetes_model.py)
+# Trained ML artifacts (застарілі / проміжні файли).
+# Основний пакет diabetes_models.joblib комітиться для Streamlit Cloud.
 *.joblib
+!diabetes_models.joblib
 
 # Legacy / unused local dataset (active file: diabetes_prediction_dataset.csv)
 diabetes.csv

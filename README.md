@@ -1,4 +1,4 @@
-# Передбачення діабету (ML + Flask)
+# Передбачення діабету (ML + Streamlit / Flask)
 
 Навчальний проєкт: порівняння кількох алгоритмів машинного навчання для оцінки ймовірності діабету за показниками пацієнта.
 
@@ -11,98 +11,89 @@
 - композитний **рейтинг** моделей (ROC-AUC 50% + Recall 30% + F1 20%)
 - гіперпараметричний тюнінг топ-2 моделей
 - веб-форма з **слайдером порогу** ймовірності
+- UI на **Streamlit** (деплой на [Streamlit Community Cloud](https://streamlit.io/cloud)) + локальний Flask
 - unit-тести (`pytest`)
 
 ## Структура
 
 ```
 ProjectAILearning/
-├── app.py                      # Flask веб-інтерфейс
+├── streamlit_app.py            # головний UI для Streamlit Cloud
+├── app.py                      # Flask UI (локально, опційно) + спільні хелпери
 ├── train_diabetes_model.py     # навчання та збереження моделей
 ├── predict_diabetes.py         # передбачення
 ├── model_registry.py           # реєстр алгоритмів / pipelines
 ├── validators.py               # валідація даних пацієнта
 ├── config.py                   # шляхи та константи
 ├── exceptions.py               # користувацькі винятки
+├── diabetes_models.joblib      # навчені моделі (потрібні для деплою)
 ├── diabetes_prediction_dataset.csv
-├── model_metrics.json          # метрики після навчання
+├── model_metrics.json
 ├── feature_importance.json
-├── templates/index.html
-├── static/                     # CSS, JS
+├── .streamlit/config.toml      # тема Streamlit
+├── packages.txt                # системні пакети для Linux (Cloud)
+├── templates/ / static/        # Flask UI
 ├── tests/
 └── requirements.txt
 ```
 
 ## Вимоги
 
-- Python 3.10+ (перевірено на 3.14)
+- Python 3.10+ 
 - залежності з `requirements.txt`
 
-## Швидкий старт
-
-### 1. Клонування та середовище
+## Швидкий старт (локально)
 
 ```bash
-git clone <URL-вашого-репозиторію>.git
+git clone https://github.com/prostir06/ProjectAILearning.git
 cd ProjectAILearning
 
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
-### 2. Навчання моделей
-
-Артефакти `*.joblib` **не зберігаються в git** (великі файли). Перед першим запуском веб-додатка навчіть моделі:
+### Streamlit (основний веб-UI)
 
 ```bash
-python train_diabetes_model.py
+streamlit run streamlit_app.py
 ```
 
-Скрипт створить:
+Якщо `diabetes_models.joblib` відсутній, додаток спробує швидко навчити моделі без тюнінгу при першому старті.
 
-- `diabetes_models.joblib` — пакет навчених моделей
-- `model_metrics.json` — метрики порівняння
-- `feature_importance.json` — важливість ознак
-
-### 3. Запуск веб-інтерфейсу
+### Flask (опційно)
 
 ```bash
 python app.py
 ```
 
-Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000).
+Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000). Debug: `FLASK_DEBUG=1`.
 
-Для debug-режиму:
+### Навчання моделей вручну
 
 ```bash
-# Windows PowerShell
-$env:FLASK_DEBUG="1"; python app.py
-
-# bash
-FLASK_DEBUG=1 python app.py
+python train_diabetes_model.py
 ```
 
-Порт можна змінити змінною `PORT` (за замовчуванням `5000`).
-
-### 4. Тести
+### Тести
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-## Приклад передбачення з CLI
+## Деплой на Streamlit Community Cloud
 
-```bash
-python predict_diabetes.py
-```
+1. Зайдіть на [share.streamlit.io](https://share.streamlit.io) / Cloud і увійдіть через GitHub.
+2. **New app** → репозиторій `prostir06/ProjectAILearning`, гілка `main`.
+3. **Main file path:** `streamlit_app.py`
+4. Натисніть **Deploy**.
+
+Cloud установить залежності з `requirements.txt` і системні пакети з `packages.txt` (потрібно для XGBoost на Linux).
+
+Публічний репозиторій: https://github.com/prostir06/ProjectAILearning
 
 ## Ліцензія даних
 
-Датасет `diabetes_prediction_dataset.csv` — публічний навчальний набір (Kaggle / подібні джерела). Перед комерційним використанням перевірте умови ліцензії оригінального набору.
+Датасет `diabetes_prediction_dataset.csv` — публічний навчальний набір. Перед комерційним використанням перевірте умови ліцензії оригінального джерела.
