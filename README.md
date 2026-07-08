@@ -4,6 +4,28 @@
 
 > **Увага:** модель навчальна і **не замінює** медичну діагностику.
 
+## Скріншоти
+
+### Streamlit
+
+#### Головна сторінка (метрики + форма)
+
+![Streamlit: метрики алгоритмів і форма пацієнта](docs/screenshots/streamlit-01-metrics-and-form.png)
+
+#### Результати передбачення
+
+![Streamlit: загальний підсумок і порівняння моделей](docs/screenshots/streamlit-02-prediction-results.png)
+
+### Flask
+
+#### Головна сторінка (метрики + форма)
+
+![Flask: метрики алгоритмів і форма пацієнта](docs/screenshots/flask-01-metrics-and-form.png)
+
+#### Результати передбачення
+
+![Flask: donut-діаграми та порівняння моделей](docs/screenshots/flask-02-prediction-results.png)
+
 ## Можливості
 
 - 6 алгоритмів: Random Forest, XGBoost, градієнтний бустинг, AdaBoost, дерево рішень, логістична регресія
@@ -32,6 +54,8 @@ ProjectAILearning/
 ├── feature_importance.json
 ├── .streamlit/config.toml      # тема Streamlit
 ├── packages.txt                # системні пакети для Linux (Cloud)
+├── docs/screenshots/           # скріншоти для README
+├── scripts/capture_screenshots.py
 ├── templates/ / static/        # Flask UI
 ├── tests/
 └── requirements.txt
@@ -93,6 +117,16 @@ python -m pytest tests/ -v
 Cloud установить залежності з `requirements.txt` і системні пакети з `packages.txt` (потрібно для XGBoost на Linux).
 
 Публічний репозиторій: https://github.com/prostir06/ProjectAILearning
+
+### Оновлення скріншотів
+
+```bash
+pip install playwright
+playwright install chromium
+python scripts/capture_screenshots.py          # обидва UI
+python scripts/capture_screenshots.py --flask-only
+python scripts/capture_screenshots.py --streamlit-only
+```
 
 ## Ліцензія даних
 
