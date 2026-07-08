@@ -55,7 +55,6 @@ ProjectAILearning/
 ├── .streamlit/config.toml      # тема Streamlit
 ├── packages.txt                # системні пакети для Linux (Cloud)
 ├── docs/screenshots/           # скріншоти для README
-├── scripts/capture_screenshots.py
 ├── templates/ / static/        # Flask UI
 ├── tests/
 └── requirements.txt
@@ -117,16 +116,6 @@ python -m pytest tests/ -v
 Cloud установить залежності з `requirements.txt` і системні пакети з `packages.txt` (потрібно для XGBoost на Linux).
 
 Публічний репозиторій: https://github.com/prostir06/ProjectAILearning
-
-### Оновлення скріншотів
-
-```bash
-pip install playwright
-playwright install chromium
-python scripts/capture_screenshots.py          # обидва UI
-python scripts/capture_screenshots.py --flask-only
-python scripts/capture_screenshots.py --streamlit-only
-```
 
 ## Ліцензія даних
 
