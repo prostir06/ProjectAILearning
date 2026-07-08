@@ -33,6 +33,97 @@ from predict_diabetes import (
 )
 from validators import validate_person_data
 
+# Стилі donut-діаграм (узгоджено з static/style.css у Flask UI).
+DONUT_CHART_STYLES = """
+<style>
+.st-donut-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0.75rem 0;
+}
+.st-donut {
+  --percent: 0;
+  --threshold: 50;
+  --fill: #2dd4bf;
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(
+    from 180deg,
+    var(--fill) 0%,
+    var(--fill) calc(var(--percent) * 1%),
+    #1e293b calc(var(--percent) * 1%),
+    #1e293b 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.1);
+}
+.st-donut-positive { --fill: #f97316; }
+.st-donut-threshold {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+.st-donut-threshold line {
+  stroke: #dc2626;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.st-donut-hole {
+  position: relative;
+  z-index: 3;
+  width: var(--hole);
+  height: var(--hole);
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+}
+.st-donut-value {
+  font-size: var(--value-size);
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+.st-donut-label {
+  font-size: var(--label-size);
+  color: #334155;
+  text-align: center;
+}
+.st-result-label {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0.25rem 0 0.5rem;
+}
+.st-result-negative { color: #15803d; }
+.st-result-positive { color: #c2410c; }
+.st-model-card {
+  text-align: center;
+  padding: 1rem 0.5rem;
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+}
+.st-model-card-negative {
+  background: #eef6f8;
+  border: 1px solid #cfe8ee;
+}
+.st-model-card-positive {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+</style>
+"""
+
 # Метадані сторінки Streamlit Cloud.
 st.set_page_config(
     page_title="Передбачення діабету",
@@ -106,6 +197,62 @@ def load_importance_table() -> pd.DataFrame:
         "Ознака": frame["label_uk"],
         "Важливість %": (frame["importance"] * 100).round(1),
     })
+
+
+def build_donut_html(
+    percent: int,
+    threshold_percent: int,
+    donut_label: str,
+    is_positive: bool,
+    *,
+    small: bool = False,
+) -> str:
+    """
+    Генерує HTML donut-діаграми з червоною лінією порогу.
+
+    Відлік дуги й порогу починається знизу (6 год.) за годинниковою стрілкою,
+    як у Flask-інтерфейсі.
+
+    Args:
+        percent: Ймовірність у відсотках (0–100).
+        threshold_percent: Поріг у відсотках (0–100).
+        donut_label: Підпис у центрі діаграми.
+        is_positive: Чи результат «Так» (помаранчева дуга).
+        small: Менший розмір для карток алгоритмів.
+
+    Returns:
+        HTML-рядок для st.markdown(..., unsafe_allow_html=True).
+    """
+    size = 140 if small else 180
+    hole = 100 if small else 132
+    value_size = "1.75rem" if small else "2.25rem"
+    label_size = "0.85rem" if small else "0.95rem"
+    positive_class = " st-donut-positive" if is_positive else ""
+    threshold_rotation = threshold_percent * 3.6
+
+    return f"""
+<div class="st-donut-wrap">
+  <div
+    class="st-donut{positive_class}"
+    style="--percent: {percent}; --threshold: {threshold_percent};
+           --size: {size}px; --hole: {hole}px;
+           --value-size: {value_size}; --label-size: {label_size};"
+    role="img"
+    aria-label="Ймовірність {percent} відсотків, поріг {threshold_percent} відсотків"
+  >
+    <svg class="st-donut-threshold" viewBox="0 0 100 100" aria-hidden="true">
+      <line
+        x1="50" y1="50" x2="50" y2="90"
+        transform="rotate({threshold_rotation} 50 50)"
+      />
+    </svg>
+    <div class="st-donut-hole">
+      <span class="st-donut-value">{percent}%</span>
+      <span class="st-donut-label">{donut_label}</span>
+    </div>
+  </div>
+</div>
+"""
 
 
 def render_sidebar_form() -> tuple[dict | None, float, bool]:
@@ -240,20 +387,31 @@ def render_prediction(person: dict, threshold: float) -> None:
     summary = prediction["summary"]
     models = prediction["models"]
     threshold_percent = int(threshold * 100)
+    summary_percent = int(round(float(summary["probability"]) * 100))
+    summary_positive = summary["diabetes"] == 1
 
     st.subheader("Загальний підсумок")
-    col_a, col_b, col_c = st.columns(3)
-    col_a.metric("Результат", summary["label"])
-    col_b.metric(
-        "Середня ймовірність",
-        f"{summary['probability'] * 100:.0f}%",
+    st.markdown(
+        build_donut_html(
+            summary_percent,
+            threshold_percent,
+            "середня ймовірність",
+            summary_positive,
+        ),
+        unsafe_allow_html=True,
     )
-    col_c.metric("Поріг", f"{threshold_percent}%")
+    result_class = "st-result-positive" if summary_positive else "st-result-negative"
+    st.markdown(
+        f'<p class="st-result-label {result_class}">{summary["label"]}</p>',
+        unsafe_allow_html=True,
+    )
     st.caption(summary["votes_text"])
-    st.progress(min(1.0, max(0.0, float(summary["probability"]))))
+    st.caption(f"Поріг: {threshold_percent}% (вище = «Так», відлік знизу)")
 
     st.subheader("Результати за алгоритмами")
-    st.caption(f"Червона лінія порогу: {threshold_percent}% (вище = «Так»)")
+    st.caption(
+        f"Червона лінія — поріг {threshold_percent}% (вище = «Так», відлік знизу)"
+    )
 
     columns = st.columns(3)
     for index, item in enumerate(models):
@@ -265,16 +423,40 @@ def render_prediction(person: dict, threshold: float) -> None:
                 title += " · найкраща"
 
             probability = float(item["probability"])
-            st.markdown(f"**{title}**")
-            st.metric("Ймовірність", f"{probability * 100:.0f}%", item["label"])
-            st.progress(min(1.0, max(0.0, probability)))
+            percent = int(round(probability * 100))
+            is_positive = item["diabetes"] == 1
+            card_class = (
+                "st-model-card-positive" if is_positive else "st-model-card-negative"
+            )
+
+            st.markdown(
+                f'<div class="st-model-card {card_class}"><strong>{title}</strong></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                build_donut_html(
+                    percent,
+                    threshold_percent,
+                    "ймовірність",
+                    is_positive,
+                    small=True,
+                ),
+                unsafe_allow_html=True,
+            )
+            item_result_class = (
+                "st-result-positive" if is_positive else "st-result-negative"
+            )
+            st.markdown(
+                f'<p class="st-result-label {item_result_class}">{item["label"]}</p>',
+                unsafe_allow_html=True,
+            )
             if item.get("error_rate") is not None:
                 st.caption(f"Похибка на тесті: {item['error_rate'] * 100:.1f}%")
-            st.divider()
 
 
 def main() -> None:
     """Головна сторінка Streamlit-додатка."""
+    st.markdown(DONUT_CHART_STYLES, unsafe_allow_html=True)
     st.title("Передбачення діабету")
     st.markdown(
         "Порівняння кількох алгоритмів ML за даними пацієнта. "

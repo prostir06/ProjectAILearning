@@ -14,7 +14,7 @@
 
 #### Результати передбачення
 
-![Streamlit: загальний підсумок і порівняння моделей](docs/screenshots/streamlit-02-prediction-results.png)
+![Streamlit: donut-діаграми, підсумок і порівняння моделей](docs/screenshots/streamlit-02-prediction-results.png)
 
 ### Flask
 
