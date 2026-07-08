@@ -53,3 +53,21 @@ def test_build_donut_html_positive_uses_orange_class():
 
     assert "st-donut-positive" in html
     assert "65%" in html
+
+
+def test_build_results_grid_html_uses_css_grid():
+    """Сітка результатів містить клас st-results-grid."""
+    models = [
+        {
+            "model_name": "Test",
+            "rank": 1,
+            "probability": 0.4,
+            "diabetes": 0,
+            "label": "Ні",
+            "error_rate": 0.05,
+        }
+    ]
+    html = streamlit_app.build_results_grid_html(models, threshold_percent=50)
+
+    assert "st-results-grid" in html
+    assert "st-model-card-title" in html

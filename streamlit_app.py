@@ -108,10 +108,14 @@ DONUT_CHART_STYLES = """
 .st-result-negative { color: #15803d; }
 .st-result-positive { color: #c2410c; }
 .st-model-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 1rem 0.5rem;
+  padding: 1rem 0.75rem;
   border-radius: 12px;
-  margin-bottom: 0.5rem;
+  height: 100%;
+  box-sizing: border-box;
 }
 .st-model-card-negative {
   background: #eef6f8;
@@ -120,6 +124,61 @@ DONUT_CHART_STYLES = """
 .st-model-card-positive {
   background: #fff7ed;
   border: 1px solid #fed7aa;
+}
+.st-results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+  margin-top: 0.5rem;
+}
+.st-model-card-title {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+}
+.st-model-card-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 140px;
+}
+.st-model-result {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0.35rem 0 0.15rem;
+  text-align: center;
+}
+.st-model-error {
+  font-size: 0.85rem;
+  color: #64748b;
+  text-align: center;
+  min-height: 1.25rem;
+  margin: 0;
+}
+.st-summary-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.st-donut-wrap.compact {
+  margin: 0;
+}
+@media (max-width: 900px) {
+  .st-results-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .st-results-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 """
@@ -206,6 +265,7 @@ def build_donut_html(
     is_positive: bool,
     *,
     small: bool = False,
+    compact: bool = False,
 ) -> str:
     """
     Генерує HTML donut-діаграми з червоною лінією порогу.
@@ -219,6 +279,7 @@ def build_donut_html(
         donut_label: Підпис у центрі діаграми.
         is_positive: Чи результат «Так» (помаранчева дуга).
         small: Менший розмір для карток алгоритмів.
+        compact: Без зовнішніх відступів (всередині картки).
 
     Returns:
         HTML-рядок для st.markdown(..., unsafe_allow_html=True).
@@ -229,9 +290,10 @@ def build_donut_html(
     label_size = "0.85rem" if small else "0.95rem"
     positive_class = " st-donut-positive" if is_positive else ""
     threshold_rotation = threshold_percent * 3.6
+    wrap_class = "st-donut-wrap compact" if compact else "st-donut-wrap"
 
     return f"""
-<div class="st-donut-wrap">
+<div class="{wrap_class}">
   <div
     class="st-donut{positive_class}"
     style="--percent: {percent}; --threshold: {threshold_percent};
@@ -251,6 +313,72 @@ def build_donut_html(
       <span class="st-donut-label">{donut_label}</span>
     </div>
   </div>
+</div>
+"""
+
+
+def build_model_card_html(item: dict, threshold_percent: int) -> str:
+    """HTML однієї картки алгоритму з вирівняними блоками."""
+    title = item["model_name"]
+    if item.get("rank"):
+        title = f"#{item['rank']} {title}"
+    if item.get("is_best"):
+        title += " · найкраща"
+
+    percent = int(round(float(item["probability"]) * 100))
+    is_positive = item["diabetes"] == 1
+    card_class = "st-model-card-positive" if is_positive else "st-model-card-negative"
+    result_class = "st-result-positive" if is_positive else "st-result-negative"
+
+    error_text = ""
+    if item.get("error_rate") is not None:
+        error_text = f"Похибка на тесті: {item['error_rate'] * 100:.1f}%"
+
+    donut = build_donut_html(
+        percent,
+        threshold_percent,
+        "ймовірність",
+        is_positive,
+        small=True,
+        compact=True,
+    )
+
+    return f"""
+<div class="st-model-card {card_class}">
+  <div class="st-model-card-title"><strong>{title}</strong></div>
+  <div class="st-model-card-chart">{donut}</div>
+  <p class="st-model-result {result_class}">{item["label"]}</p>
+  <p class="st-model-error">{error_text}</p>
+</div>
+"""
+
+
+def build_results_grid_html(models: list[dict], threshold_percent: int) -> str:
+    """Сітка карток алгоритмів 3×2 з однаковим вирівнюванням."""
+    cards = "".join(
+        build_model_card_html(item, threshold_percent) for item in models
+    )
+    return f'<div class="st-results-grid">{cards}</div>'
+
+
+def build_summary_block_html(
+    summary: dict,
+    threshold_percent: int,
+    summary_percent: int,
+    summary_positive: bool,
+) -> str:
+    """HTML блоку загального підсумку з центрованою donut-діаграмою."""
+    result_class = "st-result-positive" if summary_positive else "st-result-negative"
+    donut = build_donut_html(
+        summary_percent,
+        threshold_percent,
+        "середня ймовірність",
+        summary_positive,
+    )
+    return f"""
+<div class="st-summary-block">
+  {donut}
+  <p class="st-result-label {result_class}">{summary["label"]}</p>
 </div>
 """
 
@@ -392,17 +520,12 @@ def render_prediction(person: dict, threshold: float) -> None:
 
     st.subheader("Загальний підсумок")
     st.markdown(
-        build_donut_html(
-            summary_percent,
+        build_summary_block_html(
+            summary,
             threshold_percent,
-            "середня ймовірність",
+            summary_percent,
             summary_positive,
         ),
-        unsafe_allow_html=True,
-    )
-    result_class = "st-result-positive" if summary_positive else "st-result-negative"
-    st.markdown(
-        f'<p class="st-result-label {result_class}">{summary["label"]}</p>',
         unsafe_allow_html=True,
     )
     st.caption(summary["votes_text"])
@@ -412,46 +535,10 @@ def render_prediction(person: dict, threshold: float) -> None:
     st.caption(
         f"Червона лінія — поріг {threshold_percent}% (вище = «Так», відлік знизу)"
     )
-
-    columns = st.columns(3)
-    for index, item in enumerate(models):
-        with columns[index % 3]:
-            title = item["model_name"]
-            if item.get("rank"):
-                title = f"#{item['rank']} {title}"
-            if item.get("is_best"):
-                title += " · найкраща"
-
-            probability = float(item["probability"])
-            percent = int(round(probability * 100))
-            is_positive = item["diabetes"] == 1
-            card_class = (
-                "st-model-card-positive" if is_positive else "st-model-card-negative"
-            )
-
-            st.markdown(
-                f'<div class="st-model-card {card_class}"><strong>{title}</strong></div>',
-                unsafe_allow_html=True,
-            )
-            st.markdown(
-                build_donut_html(
-                    percent,
-                    threshold_percent,
-                    "ймовірність",
-                    is_positive,
-                    small=True,
-                ),
-                unsafe_allow_html=True,
-            )
-            item_result_class = (
-                "st-result-positive" if is_positive else "st-result-negative"
-            )
-            st.markdown(
-                f'<p class="st-result-label {item_result_class}">{item["label"]}</p>',
-                unsafe_allow_html=True,
-            )
-            if item.get("error_rate") is not None:
-                st.caption(f"Похибка на тесті: {item['error_rate'] * 100:.1f}%")
+    st.markdown(
+        build_results_grid_html(models, threshold_percent),
+        unsafe_allow_html=True,
+    )
 
 
 def main() -> None:
