@@ -1,0 +1,74 @@
+{
+  "random_forest": {
+    "accuracy": 0.9217,
+    "error_rate": 0.0783,
+    "precision": 0.5242,
+    "recall": 0.8612,
+    "f1": 0.6517,
+    "roc_auc": 0.9733,
+    "label_uk": "Випадковий ліс (Random Forest)",
+    "selection_score": 0.8753,
+    "tuned": true,
+    "is_best": true
+  },
+  "logistic_regression": {
+    "accuracy": 0.8892,
+    "error_rate": 0.1108,
+    "precision": 0.4272,
+    "recall": 0.8912,
+    "f1": 0.5776,
+    "roc_auc": 0.963,
+    "label_uk": "Логістична регресія",
+    "selection_score": 0.8644,
+    "tuned": false,
+    "is_best": false
+  },
+  "hist_gradient_boosting": {
+    "accuracy": 0.9688,
+    "error_rate": 0.0312,
+    "precision": 0.8859,
+    "recall": 0.7259,
+    "f1": 0.7979,
+    "roc_auc": 0.9778,
+    "label_uk": "Градієнтний бустинг",
+    "selection_score": 0.8663,
+    "tuned": false,
+    "is_best": false
+  },
+  "decision_tree": {
+    "accuracy": 0.931,
+    "error_rate": 0.069,
+    "precision": 0.5654,
+    "recall": 0.8135,
+    "f1": 0.6671,
+    "roc_auc": 0.9683,
+    "label_uk": "Дерево рішень",
+    "selection_score": 0.8616,
+    "tuned": false,
+    "is_best": false
+  },
+  "adaboost": {
+    "accuracy": 0.9039,
+    "error_rate": 0.0961,
+    "precision": 0.4652,
+    "recall": 0.8718,
+    "f1": 0.6066,
+    "roc_auc": 0.9719,
+    "label_uk": "AdaBoost",
+    "selection_score": 0.8688,
+    "tuned": false,
+    "is_best": false
+  },
+  "xgboost": {
+    "accuracy": 0.9704,
+    "error_rate": 0.0296,
+    "precision": 0.9254,
+    "recall": 0.7082,
+    "f1": 0.8024,
+    "roc_auc": 0.978,
+    "label_uk": "XGBoost",
+    "selection_score": 0.8619,
+    "tuned": false,
+    "is_best": false
+  }
+}

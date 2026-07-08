@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Порівняння алгоритмів ML для оцінки ймовірності діабету.">
+  <title>Передбачення діабету</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='main.js') }}" defer></script>
+</head>
+<body>
+  <main class="container container-wide">
+    <header>
+      <h1>Передбачення діабету</h1>
+      <p class="subtitle">Порівняння кількох алгоритмів ML за даними пацієнта</p>
+    </header>
+
+    <div class="page-layout">
+      <aside class="layout-left" aria-label="Форма введення даних пацієнта">
+        <section class="form-section" aria-labelledby="form-heading">
+          <h2 id="form-heading">Дані пацієнта</h2>
+          <p class="section-caption">Введіть показники для передбачення</p>
+
+          {% if error %}
+          <div class="alert alert-error" role="alert" aria-live="assertive">{{ error }}</div>
+          {% endif %}
+
+          <form method="post" class="form-grid" id="prediction-form" novalidate>
+      <label for="gender">
+        Стать
+        <select id="gender" name="gender" required aria-required="true">
+          <option value="Female" {% if form.gender == "Female" %}selected{% endif %}>Жінка</option>
+          <option value="Male" {% if form.gender == "Male" %}selected{% endif %}>Чоловік</option>
+        </select>
+      </label>
+
+      <label for="age">
+        Вік
+        <input
+          id="age"
+          type="number"
+          name="age"
+          min="1"
+          max="120"
+          step="1"
+          value="{{ form.age }}"
+          required
+          aria-required="true"
+        >
+      </label>
+
+      <label for="hypertension">
+        Гіпертонія
+        <select id="hypertension" name="hypertension" required aria-required="true">
+          <option value="0" {% if form.hypertension == "0" %}selected{% endif %}>Ні</option>
+          <option value="1" {% if form.hypertension == "1" %}selected{% endif %}>Так</option>
+        </select>
+      </label>
+
+      <label for="heart_disease">
+        Хвороби серця
+        <select id="heart_disease" name="heart_disease" required aria-required="true">
+          <option value="0" {% if form.heart_disease == "0" %}selected{% endif %}>Ні</option>
+          <option value="1" {% if form.heart_disease == "1" %}selected{% endif %}>Так</option>
+        </select>
+      </label>
+
+      <input type="hidden" name="smoking_history" value="No Info">
+
+      <label for="bmi">
+        ІМТ (індекс маси тіла)
+        <input
+          id="bmi"
+          type="number"
+          name="bmi"
+          min="10"
+          max="80"
+          step="0.1"
+          value="{{ form.bmi }}"
+          required
+          aria-required="true"
+        >
+      </label>
+
+      <label for="hba1c_level">
+        <span class="tooltip" tabindex="0" aria-describedby="hba1c-tooltip">
+          HbA1c (%)
+          <span class="tooltip-text" id="hba1c-tooltip" role="tooltip">
+            Гемоглобін A1c — середній показник цукру в крові за останні 2–3 місяці
+          </span>
+        </span>
+        <input
+          id="hba1c_level"
+          type="number"
+          name="HbA1c_level"
+          min="3"
+          max="15"
+          step="0.1"
+          value="{{ form.HbA1c_level }}"
+          required
+          aria-required="true"
+        >
+      </label>
+
+      <label class="full-width" for="blood_glucose_level">
+        Глюкоза в крові (мг/дл)
+        <input
+          id="blood_glucose_level"
+          type="number"
+          name="blood_glucose_level"
+          min="50"
+          max="400"
+          step="1"
+          value="{{ form.blood_glucose_level }}"
+          required
+          aria-required="true"
+        >
+      </label>
+
+      <div class="full-width threshold-field">
+        <label for="prediction_threshold">
+          Поріг ймовірності
+          <span class="tooltip" tabindex="0" aria-describedby="threshold-tooltip">
+            (?)
+            <span class="tooltip-text" id="threshold-tooltip" role="tooltip">
+              Якщо ймовірність діабету ≥ порогу — результат «Так».
+              Нижчий поріг — більше позитивних результатів.
+            </span>
+          </span>
+        </label>
+        <div class="threshold-control">
+          <input
+            type="range"
+            id="prediction_threshold"
+            name="prediction_threshold"
+            min="{{ threshold_min_percent }}"
+            max="{{ threshold_max_percent }}"
+            step="{{ threshold_step }}"
+            value="{{ threshold_percent }}"
+            aria-valuemin="{{ threshold_min_percent }}"
+            aria-valuemax="{{ threshold_max_percent }}"
+            aria-valuenow="{{ threshold_percent }}"
+            aria-valuetext="{{ threshold_percent }} відсотків"
+          >
+          <output
+            id="threshold-display"
+            class="threshold-value"
+            for="prediction_threshold"
+          >{{ threshold_percent }}%</output>
+        </div>
+        <p class="threshold-hint">
+          {{ threshold_min_percent }}% — більше «Так» ·
+          {{ threshold_max_percent }}% — більше «Ні»
+        </p>
+      </div>
+
+      <button type="submit" class="full-width">Передбачити</button>
+          </form>
+        </section>
+      </aside>
+
+      <div class="layout-right" aria-label="Метрики та результати передбачення">
+        {% if metrics_rows %}
+        <section class="metrics-section" aria-labelledby="metrics-heading">
+          <h2 id="metrics-heading">Похибка алгоритмів на тестовій вибірці</h2>
+          <p class="section-caption">
+            SMOTE на train, метрики на test (80% / 20%).
+            Сортування за рейтингом (ROC-AUC 50% + Recall 30% + F1 20%).
+          </p>
+          <div class="table-wrap">
+            <table class="metrics-table">
+              <thead>
+                <tr>
+                  <th scope="col" class="rank-col">#</th>
+                  <th scope="col">Алгоритм</th>
+                  <th scope="col">Рейтинг</th>
+                  <th scope="col">ROC-AUC</th>
+                  <th scope="col">Recall</th>
+                  <th scope="col">F1</th>
+                  <th scope="col">Точність</th>
+                  <th scope="col">Похибка</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in metrics_rows %}
+                <tr class="{% if row.is_best %}best-model-row{% endif %}">
+                  <td class="rank-col">{{ row.rank }}</td>
+                  <th scope="row">
+                    {{ row.model_name }}
+                    {% if row.is_best %}<span class="best-badge">найкраща</span>{% endif %}
+                    {% if row.tuned %}<span class="tuned-badge">тюнінг</span>{% endif %}
+                  </th>
+                  <td class="score-cell">{{ "%.1f"|format(row.selection_score * 100) }}%</td>
+                  <td>
+                    {% if row.roc_auc is not none %}
+                    {{ "%.1f"|format(row.roc_auc * 100) }}%
+                    {% else %}н/д{% endif %}
+                  </td>
+                  <td>{{ "%.1f"|format(row.recall * 100) }}%</td>
+                  <td>{{ "%.1f"|format(row.f1 * 100) }}%</td>
+                  <td>{{ "%.1f"|format(row.accuracy * 100) }}%</td>
+                  <td class="error-cell">{{ "%.1f"|format(row.error_rate * 100) }}%</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        {% endif %}
+
+        {% if feature_importance %}
+        <section class="importance-section" aria-labelledby="importance-heading">
+          <h2 id="importance-heading">Важливість ознак (найкраща модель)</h2>
+          <ul class="importance-list">
+            {% for item in feature_importance %}
+            <li>
+              <span class="importance-label">{{ item.label_uk }}</span>
+              <div class="importance-bar-wrap">
+                <div
+                  class="importance-bar"
+                  style="width: {{ (item.importance * 100)|round(1) }}%"
+                ></div>
+              </div>
+              <span class="importance-value">{{ "%.1f"|format(item.importance * 100) }}%</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        {% if summary %}
+        <section
+          class="summary-section {% if summary.diabetes %}result-positive{% else %}result-negative{% endif %}"
+          aria-labelledby="summary-heading"
+        >
+          <h2 id="summary-heading">Загальний підсумок</h2>
+          {% set summary_percent = (summary.probability * 100)|round(0, 'common')|int %}
+          <div
+            class="donut-chart"
+            style="--percent: {{ summary_percent }}; --threshold: {{ threshold_percent }}"
+            role="img"
+            aria-label="Загальний підсумок: ймовірність {{ summary_percent }} відсотків"
+          >
+            <svg class="donut-threshold" viewBox="0 0 100 100" aria-hidden="true">
+              <line
+                x1="50"
+                y1="50"
+                x2="50"
+                y2="90"
+                transform="rotate({{ threshold_percent * 3.6 }} 50 50)"
+              />
+            </svg>
+            <div class="donut-hole">
+              <span class="donut-value">{{ summary_percent }}%</span>
+              <span class="donut-label">середня ймовірність</span>
+            </div>
+          </div>
+          <p class="result-label">{{ summary.label }}</p>
+          <p class="summary-votes">{{ summary.votes_text }}</p>
+          <p class="result-caption">
+            Підсумок: середня ймовірність за {{ summary.total_models }} алгоритмами
+            (поріг {{ threshold_percent }}%)
+          </p>
+        </section>
+        {% endif %}
+
+        {% if results %}
+        <section class="results-section" aria-labelledby="results-heading" aria-live="polite">
+          <h2 id="results-heading">Результати передбачення</h2>
+          <p class="section-caption">
+            Червона лінія — поріг {{ threshold_percent }}% (вище = «Так», відлік знизу)
+          </p>
+          <div class="results-grid">
+            {% for item in results %}
+            {% set percent = (item.probability * 100)|round(0, 'common')|int %}
+            <article class="result-card {% if item.diabetes %}result-positive{% else %}result-negative{% endif %}{% if item.is_best %} result-card-best{% endif %}">
+              <h3>
+                {% if item.rank %}<span class="result-rank">#{{ item.rank }}</span>{% endif %}
+                {{ item.model_name }}
+                {% if item.is_best %}<span class="best-badge">найкраща</span>{% endif %}
+              </h3>
+              <div
+                class="donut-chart donut-chart-small"
+                style="--percent: {{ percent }}; --threshold: {{ threshold_percent }}"
+                role="img"
+                aria-label="{{ item.model_name }}: ймовірність {{ percent }} відсотків, поріг {{ threshold_percent }} відсотків"
+              >
+                <svg class="donut-threshold" viewBox="0 0 100 100" aria-hidden="true">
+                  <line
+                    x1="50"
+                    y1="50"
+                    x2="50"
+                    y2="90"
+                    transform="rotate({{ threshold_percent * 3.6 }} 50 50)"
+                  />
+                </svg>
+                <div class="donut-hole">
+                  <span class="donut-value">{{ percent }}%</span>
+                  <span class="donut-label">ймовірність</span>
+                </div>
+              </div>
+              <p class="result-label">{{ item.label }}</p>
+              {% if item.error_rate is not none %}
+              <p class="result-caption">Похибка на тесті: {{ "%.1f"|format(item.error_rate * 100) }}%</p>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+        {% elif not metrics_rows %}
+        <section class="placeholder-section" aria-label="Підказка">
+          <p>Заповніть форму ліворуч і натисніть «Передбачити», щоб побачити результати.</p>
+        </section>
+        {% endif %}
+      </div>
+    </div>
+
+    <footer>
+      <small>Навчальна модель. Не замінює медичну діагностику.</small>
+    </footer>
+  </main>
+</body>
+</html>
