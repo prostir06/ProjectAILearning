@@ -1,9 +1,13 @@
 """
 Unit-тести для streamlit_app.py (без запуску UI-сесії).
+
+Перевіряють HTML-хелпери, кешовані завантажувачі таблиць
+і стійкість до пошкоджених / неповних даних.
 """
 
 from unittest.mock import patch
 
+import pandas as pd
 import pytest
 
 pytest.importorskip("streamlit")
@@ -55,6 +59,19 @@ def test_build_donut_html_positive_uses_orange_class():
     assert "65%" in html
 
 
+def test_build_donut_html_compact_wrap_class():
+    """compact=True додає клас compact до обгортки."""
+    html = streamlit_app.build_donut_html(
+        percent=40,
+        threshold_percent=50,
+        donut_label="ймовірність",
+        is_positive=False,
+        compact=True,
+    )
+
+    assert "st-donut-wrap compact" in html
+
+
 def test_build_results_grid_html_uses_css_grid():
     """Сітка результатів містить клас st-results-grid."""
     models = [
@@ -71,3 +88,132 @@ def test_build_results_grid_html_uses_css_grid():
 
     assert "st-results-grid" in html
     assert "st-model-card-title" in html
+    assert "Похибка на тесті: 5.0%" in html
+
+
+def test_build_results_grid_html_empty_models():
+    """Порожній список моделей дає порожню сітку без карток."""
+    html = streamlit_app.build_results_grid_html([], threshold_percent=50)
+
+    assert html == '<div class="st-results-grid"></div>'
+
+
+def test_build_model_card_html_invalid_item_returns_empty():
+    """Некоректна картка не ламає сітку — повертає порожній рядок."""
+    html = streamlit_app.build_model_card_html(
+        {"model_name": "Broken"},
+        threshold_percent=50,
+    )
+
+    assert html == ""
+
+
+def test_build_model_card_html_escapes_title():
+    """Назва моделі екранується від HTML-ін'єкції."""
+    html = streamlit_app.build_model_card_html(
+        {
+            "model_name": "<script>x</script>",
+            "rank": 2,
+            "is_best": True,
+            "probability": 0.8,
+            "diabetes": 1,
+            "label": "Так",
+            "error_rate": None,
+        },
+        threshold_percent=40,
+    )
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert "найкраща" in html
+    assert "st-model-card-positive" in html
+
+
+def test_build_summary_block_html_contains_label():
+    """Підсумок містить donut і підпис результату."""
+    html = streamlit_app.build_summary_block_html(
+        {"label": "Ні"},
+        threshold_percent=50,
+        summary_percent=22,
+        summary_positive=False,
+    )
+
+    assert "st-summary-block" in html
+    assert "22%" in html
+    assert "Ні" in html
+    assert "st-result-negative" in html
+
+
+def test_escape_html_replaces_special_chars():
+    """_escape_html екранує &, <, >, \"."""
+    assert streamlit_app._escape_html('a&b<c>"') == "a&amp;b&lt;c&gt;&quot;"
+
+
+def test_load_metrics_table_success():
+    """load_metrics_table будує DataFrame з відсотковими колонками."""
+    fake_rows = [
+        {
+            "rank": 1,
+            "model_name": "RF",
+            "selection_score": 0.9,
+            "roc_auc": 0.95,
+            "recall": 0.8,
+            "f1": 0.85,
+            "accuracy": 0.97,
+            "error_rate": 0.03,
+            "is_best": True,
+            "tuned": False,
+        }
+    ]
+
+    with patch(
+        "streamlit_app.format_metrics_for_display",
+        return_value=fake_rows,
+    ):
+        streamlit_app.load_metrics_table.clear()
+        table = streamlit_app.load_metrics_table()
+
+    assert isinstance(table, pd.DataFrame)
+    assert not table.empty
+    assert table.iloc[0]["Алгоритм"] == "RF"
+    assert table.iloc[0]["Найкраща"] == "так"
+
+
+def test_load_metrics_table_handles_exception():
+    """Помилка завантаження метрик дає порожній DataFrame."""
+    with patch(
+        "streamlit_app.get_training_metrics",
+        side_effect=RuntimeError("broken"),
+    ):
+        streamlit_app.load_metrics_table.clear()
+        table = streamlit_app.load_metrics_table()
+
+    assert isinstance(table, pd.DataFrame)
+    assert table.empty
+
+
+def test_load_importance_table_success():
+    """load_importance_table будує таблицю важливості ознак."""
+    items = [
+        {"label_uk": "Вік", "importance": 0.25},
+        {"label_uk": "ІМТ", "importance": 0.15},
+    ]
+
+    with patch("streamlit_app.get_feature_importance", return_value=items):
+        streamlit_app.load_importance_table.clear()
+        table = streamlit_app.load_importance_table()
+
+    assert list(table["Ознака"]) == ["Вік", "ІМТ"]
+    assert table.iloc[0]["Важливість %"] == 25.0
+
+
+def test_load_importance_table_handles_exception():
+    """Помилка читання важливості ознак дає порожній DataFrame."""
+    with patch(
+        "streamlit_app.get_feature_importance",
+        side_effect=OSError("missing"),
+    ):
+        streamlit_app.load_importance_table.clear()
+        table = streamlit_app.load_importance_table()
+
+    assert table.empty

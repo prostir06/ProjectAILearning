@@ -223,39 +223,69 @@ def ensure_models_ready() -> bool:
 
 @st.cache_data(show_spinner=False)
 def load_metrics_table() -> pd.DataFrame:
-    """Метрики алгоритмів для таблиці порівняння."""
-    rows = format_metrics_for_display(get_training_metrics())
+    """
+    Метрики алгоритмів для таблиці порівняння.
+
+    Returns:
+        DataFrame з відсотковими колонками або порожній DataFrame
+        при відсутності / пошкодженні метрик.
+    """
+    try:
+        rows = format_metrics_for_display(get_training_metrics())
+    except Exception:
+        # Кешована функція не повинна падати через битий JSON / joblib.
+        return pd.DataFrame()
+
     if not rows:
         return pd.DataFrame()
 
-    table = pd.DataFrame(rows)
-    display = pd.DataFrame({
-        "#": table["rank"],
-        "Алгоритм": table["model_name"],
-        "Рейтинг %": (table["selection_score"] * 100).round(1),
-        "ROC-AUC %": (table["roc_auc"] * 100).round(1),
-        "Recall %": (table["recall"] * 100).round(1),
-        "F1 %": (table["f1"] * 100).round(1),
-        "Точність %": (table["accuracy"] * 100).round(1),
-        "Похибка %": (table["error_rate"] * 100).round(1),
-        "Найкраща": table["is_best"].map(lambda value: "так" if value else ""),
-        "Тюнінг": table["tuned"].map(lambda value: "так" if value else ""),
-    })
-    return display
+    try:
+        table = pd.DataFrame(rows)
+        return pd.DataFrame({
+            "#": table["rank"],
+            "Алгоритм": table["model_name"],
+            "Рейтинг %": (table["selection_score"] * 100).round(1),
+            "ROC-AUC %": (table["roc_auc"] * 100).round(1),
+            "Recall %": (table["recall"] * 100).round(1),
+            "F1 %": (table["f1"] * 100).round(1),
+            "Точність %": (table["accuracy"] * 100).round(1),
+            "Похибка %": (table["error_rate"] * 100).round(1),
+            "Найкраща": table["is_best"].map(
+                lambda value: "так" if value else ""
+            ),
+            "Тюнінг": table["tuned"].map(
+                lambda value: "так" if value else ""
+            ),
+        })
+    except (KeyError, TypeError, ValueError):
+        return pd.DataFrame()
 
 
 @st.cache_data(show_spinner=False)
 def load_importance_table() -> pd.DataFrame:
-    """Важливість ознак найкращої моделі."""
-    items = get_feature_importance()
+    """
+    Важливість ознак найкращої моделі.
+
+    Returns:
+        DataFrame з колонками «Ознака» / «Важливість %»
+        або порожній DataFrame при помилці читання.
+    """
+    try:
+        items = get_feature_importance()
+    except Exception:
+        return pd.DataFrame()
+
     if not items:
         return pd.DataFrame()
 
-    frame = pd.DataFrame(items)
-    return pd.DataFrame({
-        "Ознака": frame["label_uk"],
-        "Важливість %": (frame["importance"] * 100).round(1),
-    })
+    try:
+        frame = pd.DataFrame(items)
+        return pd.DataFrame({
+            "Ознака": frame["label_uk"],
+            "Важливість %": (frame["importance"] * 100).round(1),
+        })
+    except (KeyError, TypeError, ValueError):
+        return pd.DataFrame()
 
 
 def build_donut_html(
@@ -317,44 +347,86 @@ def build_donut_html(
 """
 
 
-def build_model_card_html(item: dict, threshold_percent: int) -> str:
-    """HTML однієї картки алгоритму з вирівняними блоками."""
-    title = item["model_name"]
-    if item.get("rank"):
-        title = f"#{item['rank']} {title}"
-    if item.get("is_best"):
-        title += " · найкраща"
-
-    percent = int(round(float(item["probability"]) * 100))
-    is_positive = item["diabetes"] == 1
-    card_class = "st-model-card-positive" if is_positive else "st-model-card-negative"
-    result_class = "st-result-positive" if is_positive else "st-result-negative"
-
-    error_text = ""
-    if item.get("error_rate") is not None:
-        error_text = f"Похибка на тесті: {item['error_rate'] * 100:.1f}%"
-
-    donut = build_donut_html(
-        percent,
-        threshold_percent,
-        "ймовірність",
-        is_positive,
-        small=True,
-        compact=True,
+def _escape_html(text: object) -> str:
+    """Екранує HTML-спецсимволи для безпечного вставлення в розмітку."""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
     )
+
+
+def build_model_card_html(item: dict, threshold_percent: int) -> str:
+    """
+    HTML однієї картки алгоритму з вирівняними блоками.
+
+    Args:
+        item: Результат одного алгоритму (model_name, probability, …).
+        threshold_percent: Поріг у відсотках для donut-лінії.
+
+    Returns:
+        HTML-картка; при некоректних даних — порожній рядок.
+    """
+    try:
+        title = _escape_html(item.get("model_name", "Модель"))
+        if item.get("rank"):
+            title = f"#{int(item['rank'])} {title}"
+        if item.get("is_best"):
+            title += " · найкраща"
+
+        percent = int(round(float(item["probability"]) * 100))
+        is_positive = int(item["diabetes"]) == 1
+        card_class = (
+            "st-model-card-positive" if is_positive else "st-model-card-negative"
+        )
+        result_class = (
+            "st-result-positive" if is_positive else "st-result-negative"
+        )
+        label = _escape_html(item.get("label", "—"))
+
+        error_text = ""
+        if item.get("error_rate") is not None:
+            error_text = (
+                f"Похибка на тесті: {float(item['error_rate']) * 100:.1f}%"
+            )
+
+        donut = build_donut_html(
+            percent,
+            threshold_percent,
+            "ймовірність",
+            is_positive,
+            small=True,
+            compact=True,
+        )
+    except (KeyError, TypeError, ValueError):
+        return ""
 
     return f"""
 <div class="st-model-card {card_class}">
   <div class="st-model-card-title"><strong>{title}</strong></div>
   <div class="st-model-card-chart">{donut}</div>
-  <p class="st-model-result {result_class}">{item["label"]}</p>
+  <p class="st-model-result {result_class}">{label}</p>
   <p class="st-model-error">{error_text}</p>
 </div>
 """
 
 
 def build_results_grid_html(models: list[dict], threshold_percent: int) -> str:
-    """Сітка карток алгоритмів 3×2 з однаковим вирівнюванням."""
+    """
+    Сітка карток алгоритмів 3×2 з однаковим вирівнюванням.
+
+    Args:
+        models: Список результатів predict_with_summary()["models"].
+        threshold_percent: Поріг у відсотках.
+
+    Returns:
+        HTML-контейнер .st-results-grid.
+    """
+    if not models:
+        return '<div class="st-results-grid"></div>'
+
     cards = "".join(
         build_model_card_html(item, threshold_percent) for item in models
     )
@@ -367,8 +439,22 @@ def build_summary_block_html(
     summary_percent: int,
     summary_positive: bool,
 ) -> str:
-    """HTML блоку загального підсумку з центрованою donut-діаграмою."""
-    result_class = "st-result-positive" if summary_positive else "st-result-negative"
+    """
+    HTML блоку загального підсумку з центрованою donut-діаграмою.
+
+    Args:
+        summary: Словник підсумку (label, probability, …).
+        threshold_percent: Поріг у відсотках.
+        summary_percent: Середня ймовірність у відсотках.
+        summary_positive: True, якщо підсумок «Так».
+
+    Returns:
+        HTML блоку .st-summary-block.
+    """
+    result_class = (
+        "st-result-positive" if summary_positive else "st-result-negative"
+    )
+    label = _escape_html(summary.get("label", "—"))
     donut = build_donut_html(
         summary_percent,
         threshold_percent,
@@ -378,7 +464,7 @@ def build_summary_block_html(
     return f"""
 <div class="st-summary-block">
   {donut}
-  <p class="st-result-label {result_class}">{summary["label"]}</p>
+  <p class="st-result-label {result_class}">{label}</p>
 </div>
 """
 
@@ -501,7 +587,13 @@ def render_metrics_section() -> None:
 
 
 def render_prediction(person: dict, threshold: float) -> None:
-    """Виконує передбачення та показує підсумок + картки моделей."""
+    """
+    Виконує передбачення та показує підсумок + картки моделей.
+
+    Args:
+        person: Нормалізовані або сирі дані пацієнта з форми.
+        threshold: Поріг ймовірності в діапазоні 0.0–1.0.
+    """
     try:
         validate_person_data(person)
         prediction = predict_with_summary(person, threshold=threshold)
@@ -509,14 +601,19 @@ def render_prediction(person: dict, threshold: float) -> None:
         st.error(get_error_message(exc))
         return
     except Exception as exc:
+        # Несподівані збої (наприклад, несумісна версія sklearn).
         st.error(get_error_message(exc))
         return
 
-    summary = prediction["summary"]
-    models = prediction["models"]
-    threshold_percent = int(threshold * 100)
-    summary_percent = int(round(float(summary["probability"]) * 100))
-    summary_positive = summary["diabetes"] == 1
+    try:
+        summary = prediction["summary"]
+        models = prediction["models"]
+        threshold_percent = int(threshold * 100)
+        summary_percent = int(round(float(summary["probability"]) * 100))
+        summary_positive = int(summary["diabetes"]) == 1
+    except (KeyError, TypeError, ValueError) as exc:
+        st.error(get_error_message(PredictionError(str(exc))))
+        return
 
     st.subheader("Загальний підсумок")
     st.markdown(
@@ -528,12 +625,13 @@ def render_prediction(person: dict, threshold: float) -> None:
         ),
         unsafe_allow_html=True,
     )
-    st.caption(summary["votes_text"])
+    st.caption(summary.get("votes_text", ""))
     st.caption(f"Поріг: {threshold_percent}% (вище = «Так», відлік знизу)")
 
     st.subheader("Результати за алгоритмами")
     st.caption(
-        f"Червона лінія — поріг {threshold_percent}% (вище = «Так», відлік знизу)"
+        f"Червона лінія — поріг {threshold_percent}% "
+        "(вище = «Так», відлік знизу)"
     )
     st.markdown(
         build_results_grid_html(models, threshold_percent),

@@ -242,16 +242,24 @@ def test_parse_threshold_from_form_default():
     assert parse_threshold_from_form({}) == 0.5
 
 
-def test_parse_threshold_from_form_custom():
-    """parse_threshold_from_form читає значення слайдера."""
+def test_parse_threshold_from_form_invalid_returns_default():
+    """Некоректний поріг у формі не падає — повертає default."""
     class FakeForm:
         def __contains__(self, key):
             return key == "prediction_threshold"
 
         def get(self, key, default=""):
-            return "30"
+            return "not-a-number"
 
-    assert parse_threshold_from_form(FakeForm()) == 0.3
+    assert parse_threshold_from_form(FakeForm(), default=0.5) == 0.5
+
+
+def test_get_error_message_prediction_and_generic():
+    """get_error_message розрізняє PredictionError і невідомі винятки."""
+    assert "передбачення" in get_error_message(
+        PredictionError("fail")
+    ).lower()
+    assert "непередбачена" in get_error_message(RuntimeError("x")).lower()
 
 
 def test_index_post_custom_threshold(client, sample_person):

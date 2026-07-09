@@ -56,6 +56,9 @@ ProjectAILearning/
 ├── packages.txt                # системні пакети для Linux (Cloud)
 ├── docs/screenshots/           # скріншоти для README
 ├── templates/ / static/        # Flask UI
+├── Dockerfile                  # образ для Streamlit / Flask
+├── docker-compose.yml          # запуск у контейнері
+├── requirements-docker.txt     # залежності образу (без pytest, xgboost CPU)
 ├── tests/
 └── requirements.txt
 ```
@@ -104,6 +107,37 @@ python train_diabetes_model.py
 
 ```bash
 python -m pytest tests/ -v
+```
+
+## Docker
+
+Потрібні [Docker](https://docs.docker.com/get-docker/) та Docker Compose.
+
+### Streamlit (основний UI)
+
+```bash
+docker compose up --build
+```
+
+Відкрийте [http://localhost:8501](http://localhost:8501).
+
+### Flask (опційно)
+
+```bash
+docker compose --profile flask up --build
+```
+
+Відкрийте [http://localhost:5000](http://localhost:5000).
+
+### Окремі команди
+
+```bash
+# лише Streamlit
+docker build -t diabetes-prediction .
+docker run --rm -p 8501:8501 diabetes-prediction
+
+# лише Flask
+docker run --rm -p 5000:5000 -e HOST=0.0.0.0 diabetes-prediction python app.py
 ```
 
 ## Деплой на Streamlit Community Cloud

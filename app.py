@@ -282,6 +282,12 @@ if __name__ == "__main__":
     import os
 
     # Для локальної розробки: FLASK_DEBUG=1. За замовчуванням debug вимкнено.
+    # HOST=0.0.0.0 потрібен у Docker, щоб порт був доступний ззовні контейнера.
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(debug=debug_mode, port=port)
+    host = os.environ.get("HOST", "127.0.0.1")
+    try:
+        port = int(os.environ.get("PORT", "5000"))
+    except ValueError:
+        logger.warning("Некоректний PORT у середовищі, використано 5000")
+        port = 5000
+    app.run(debug=debug_mode, host=host, port=port)
