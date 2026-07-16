@@ -217,3 +217,43 @@ def test_load_importance_table_handles_exception():
         table = streamlit_app.load_importance_table()
 
     assert table.empty
+
+
+def test_build_donut_html_clamps_out_of_range_percent():
+    """Відсотки поза 0–100 обмежуються."""
+    html = streamlit_app.build_donut_html(
+        percent=150,
+        threshold_percent=-10,
+        donut_label="ймовірність",
+        is_positive=False,
+    )
+
+    assert "100%" in html
+    assert "rotate(0" in html
+
+
+def test_build_donut_html_escapes_label():
+    """Підпис donut екранується від HTML."""
+    html = streamlit_app.build_donut_html(
+        percent=10,
+        threshold_percent=50,
+        donut_label="<b>x</b>",
+        is_positive=False,
+    )
+
+    assert "<b>x</b>" not in html
+    assert "&lt;b&gt;x&lt;/b&gt;" in html
+
+
+def test_ensure_models_ready_training_failure(tmp_path):
+    """Помилка навчання при відсутності joblib → RuntimeError."""
+    missing = tmp_path / "missing_models.joblib"
+
+    with patch.object(streamlit_app, "MODELS_BUNDLE_PATH", missing):
+        streamlit_app.ensure_models_ready.clear()
+        with patch(
+            "train_diabetes_model.train_all_models",
+            side_effect=OSError("disk full"),
+        ):
+            with pytest.raises(RuntimeError, match="першому запуску"):
+                streamlit_app.ensure_models_ready()

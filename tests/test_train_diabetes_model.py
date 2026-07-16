@@ -104,6 +104,12 @@ def test_compute_selection_score_weights():
     assert score == round(0.5 * 0.9 + 0.3 * 0.8 + 0.2 * 0.7, 4)
 
 
+def test_compute_selection_score_missing_keys_returns_zero():
+    """Неповні метрики дають 0.0 замість винятку."""
+    assert compute_selection_score({"roc_auc": 0.9}) == 0.0
+    assert compute_selection_score({}) == 0.0
+
+
 def test_select_best_model_key():
     """Обирається модель із найвищим selection_score."""
     metrics = {
@@ -112,6 +118,12 @@ def test_select_best_model_key():
     }
 
     assert select_best_model_key(metrics) == "b"
+
+
+def test_select_best_model_key_empty_raises():
+    """Порожній словник метрик викликає DataLoadError."""
+    with pytest.raises(DataLoadError, match="Немає навчених моделей"):
+        select_best_model_key({})
 
 
 def test_train_and_evaluate_single_class(tiny_dataframe):

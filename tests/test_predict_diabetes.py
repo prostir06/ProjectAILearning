@@ -306,3 +306,15 @@ def test_get_training_metrics_invalid_type(tmp_path):
     with patch("predict_diabetes.METRICS_PATH", bad_file):
         with patch("predict_diabetes._get_bundle", side_effect=ModelNotFoundError):
             assert get_training_metrics() == {}
+
+
+def test_get_selection_score_handles_invalid_values():
+    """_get_selection_score стійкий до некоректних типів."""
+    from predict_diabetes import _get_selection_score
+
+    assert _get_selection_score(None) == 0.0
+    assert _get_selection_score("bad") == 0.0
+    assert _get_selection_score({"selection_score": "x"}) == 0.0
+    assert _get_selection_score(
+        {"roc_auc": 1.0, "recall": 1.0, "f1": 1.0}
+    ) == 1.0

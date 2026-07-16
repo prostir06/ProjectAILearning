@@ -1,3 +1,6 @@
+# Docker Compose для локального запуску.
+# Streamlit (порт 8501): docker compose up --build
+# Flask (порт 5000):     docker compose --profile flask up --build
 services:
   streamlit:
     build: .
@@ -7,6 +10,7 @@ services:
 
   flask:
     build: .
+    # HOST=0.0.0.0 — слухати всі інтерфейси всередині контейнера.
     command: ["python", "app.py"]
     environment:
       HOST: 0.0.0.0

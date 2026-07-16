@@ -102,23 +102,40 @@ def _get_pipeline(model_key: str | None = None):
 
 
 def _get_selection_score(model_metrics: dict) -> float:
-    """Композитний бал рейтингу (ROC-AUC + Recall + F1)."""
-    stored = model_metrics.get("selection_score")
-    if stored is not None:
-        return float(stored)
+    """
+    Композитний бал рейтингу (ROC-AUC + Recall + F1).
 
-    roc_auc = model_metrics.get("roc_auc")
-    recall = model_metrics.get("recall")
-    f1 = model_metrics.get("f1")
-    if roc_auc is None or recall is None or f1 is None:
+    Args:
+        model_metrics: Метрики одного алгоритму з JSON / пакета.
+
+    Returns:
+        Бал рейтингу або 0.0, якщо дані неповні / некоректні.
+    """
+    if not isinstance(model_metrics, dict):
         return 0.0
 
-    return round(
-        BEST_MODEL_WEIGHTS["roc_auc"] * roc_auc
-        + BEST_MODEL_WEIGHTS["recall"] * recall
-        + BEST_MODEL_WEIGHTS["f1"] * f1,
-        4,
-    )
+    stored = model_metrics.get("selection_score")
+    if stored is not None:
+        try:
+            return float(stored)
+        except (TypeError, ValueError):
+            return 0.0
+
+    try:
+        roc_auc = model_metrics.get("roc_auc")
+        recall = model_metrics.get("recall")
+        f1 = model_metrics.get("f1")
+        if roc_auc is None or recall is None or f1 is None:
+            return 0.0
+
+        return round(
+            BEST_MODEL_WEIGHTS["roc_auc"] * float(roc_auc)
+            + BEST_MODEL_WEIGHTS["recall"] * float(recall)
+            + BEST_MODEL_WEIGHTS["f1"] * float(f1),
+            4,
+        )
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _run_prediction(pipeline, feature_frame: pd.DataFrame) -> dict:

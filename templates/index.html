@@ -30,135 +30,135 @@
           {% endif %}
 
           <form method="post" class="form-grid" id="prediction-form" novalidate>
-      <label for="gender">
-        Стать
-        <select id="gender" name="gender" required aria-required="true">
-          <option value="Female" {% if form.gender == "Female" %}selected{% endif %}>Жінка</option>
-          <option value="Male" {% if form.gender == "Male" %}selected{% endif %}>Чоловік</option>
-        </select>
-      </label>
+            <label for="gender">
+              Стать
+              <select id="gender" name="gender" required aria-required="true">
+                <option value="Female" {% if form.gender == "Female" %}selected{% endif %}>Жінка</option>
+                <option value="Male" {% if form.gender == "Male" %}selected{% endif %}>Чоловік</option>
+              </select>
+            </label>
 
-      <label for="age">
-        Вік
-        <input
-          id="age"
-          type="number"
-          name="age"
-          min="1"
-          max="120"
-          step="1"
-          value="{{ form.age }}"
-          required
-          aria-required="true"
-        >
-      </label>
+            <label for="age">
+              Вік
+              <input
+                id="age"
+                type="number"
+                name="age"
+                min="1"
+                max="120"
+                step="1"
+                value="{{ form.age }}"
+                required
+                aria-required="true"
+              >
+            </label>
 
-      <label for="hypertension">
-        Гіпертонія
-        <select id="hypertension" name="hypertension" required aria-required="true">
-          <option value="0" {% if form.hypertension == "0" %}selected{% endif %}>Ні</option>
-          <option value="1" {% if form.hypertension == "1" %}selected{% endif %}>Так</option>
-        </select>
-      </label>
+            <label for="hypertension">
+              Гіпертонія
+              <select id="hypertension" name="hypertension" required aria-required="true">
+                <option value="0" {% if form.hypertension == "0" %}selected{% endif %}>Ні</option>
+                <option value="1" {% if form.hypertension == "1" %}selected{% endif %}>Так</option>
+              </select>
+            </label>
 
-      <label for="heart_disease">
-        Хвороби серця
-        <select id="heart_disease" name="heart_disease" required aria-required="true">
-          <option value="0" {% if form.heart_disease == "0" %}selected{% endif %}>Ні</option>
-          <option value="1" {% if form.heart_disease == "1" %}selected{% endif %}>Так</option>
-        </select>
-      </label>
+            <label for="heart_disease">
+              Хвороби серця
+              <select id="heart_disease" name="heart_disease" required aria-required="true">
+                <option value="0" {% if form.heart_disease == "0" %}selected{% endif %}>Ні</option>
+                <option value="1" {% if form.heart_disease == "1" %}selected{% endif %}>Так</option>
+              </select>
+            </label>
 
-      <input type="hidden" name="smoking_history" value="No Info">
+            <input type="hidden" name="smoking_history" value="No Info">
 
-      <label for="bmi">
-        ІМТ (індекс маси тіла)
-        <input
-          id="bmi"
-          type="number"
-          name="bmi"
-          min="10"
-          max="80"
-          step="0.1"
-          value="{{ form.bmi }}"
-          required
-          aria-required="true"
-        >
-      </label>
+            <label for="bmi">
+              ІМТ (індекс маси тіла)
+              <input
+                id="bmi"
+                type="number"
+                name="bmi"
+                min="10"
+                max="80"
+                step="0.1"
+                value="{{ form.bmi }}"
+                required
+                aria-required="true"
+              >
+            </label>
 
-      <label for="hba1c_level">
-        <span class="tooltip" tabindex="0" aria-describedby="hba1c-tooltip">
-          HbA1c (%)
-          <span class="tooltip-text" id="hba1c-tooltip" role="tooltip">
-            Гемоглобін A1c — середній показник цукру в крові за останні 2–3 місяці
-          </span>
-        </span>
-        <input
-          id="hba1c_level"
-          type="number"
-          name="HbA1c_level"
-          min="3"
-          max="15"
-          step="0.1"
-          value="{{ form.HbA1c_level }}"
-          required
-          aria-required="true"
-        >
-      </label>
+            <label for="hba1c_level">
+              <span class="tooltip" tabindex="0" aria-describedby="hba1c-tooltip">
+                HbA1c (%)
+                <span class="tooltip-text" id="hba1c-tooltip" role="tooltip">
+                  Гемоглобін A1c — середній показник цукру в крові за останні 2–3 місяці
+                </span>
+              </span>
+              <input
+                id="hba1c_level"
+                type="number"
+                name="HbA1c_level"
+                min="3"
+                max="15"
+                step="0.1"
+                value="{{ form.HbA1c_level }}"
+                required
+                aria-required="true"
+              >
+            </label>
 
-      <label class="full-width" for="blood_glucose_level">
-        Глюкоза в крові (мг/дл)
-        <input
-          id="blood_glucose_level"
-          type="number"
-          name="blood_glucose_level"
-          min="50"
-          max="400"
-          step="1"
-          value="{{ form.blood_glucose_level }}"
-          required
-          aria-required="true"
-        >
-      </label>
+            <label class="full-width" for="blood_glucose_level">
+              Глюкоза в крові (мг/дл)
+              <input
+                id="blood_glucose_level"
+                type="number"
+                name="blood_glucose_level"
+                min="50"
+                max="400"
+                step="1"
+                value="{{ form.blood_glucose_level }}"
+                required
+                aria-required="true"
+              >
+            </label>
 
-      <div class="full-width threshold-field">
-        <label for="prediction_threshold">
-          Поріг ймовірності
-          <span class="tooltip" tabindex="0" aria-describedby="threshold-tooltip">
-            (?)
-            <span class="tooltip-text" id="threshold-tooltip" role="tooltip">
-              Якщо ймовірність діабету ≥ порогу — результат «Так».
-              Нижчий поріг — більше позитивних результатів.
-            </span>
-          </span>
-        </label>
-        <div class="threshold-control">
-          <input
-            type="range"
-            id="prediction_threshold"
-            name="prediction_threshold"
-            min="{{ threshold_min_percent }}"
-            max="{{ threshold_max_percent }}"
-            step="{{ threshold_step }}"
-            value="{{ threshold_percent }}"
-            aria-valuemin="{{ threshold_min_percent }}"
-            aria-valuemax="{{ threshold_max_percent }}"
-            aria-valuenow="{{ threshold_percent }}"
-            aria-valuetext="{{ threshold_percent }} відсотків"
-          >
-          <output
-            id="threshold-display"
-            class="threshold-value"
-            for="prediction_threshold"
-          >{{ threshold_percent }}%</output>
-        </div>
-        <p class="threshold-hint">
-          {{ threshold_min_percent }}% — більше «Так» ·
-          {{ threshold_max_percent }}% — більше «Ні»
-        </p>
-      </div>
+            <div class="full-width threshold-field">
+              <label for="prediction_threshold">
+                Поріг ймовірності
+                <span class="tooltip" tabindex="0" aria-describedby="threshold-tooltip">
+                  (?)
+                  <span class="tooltip-text" id="threshold-tooltip" role="tooltip">
+                    Якщо ймовірність діабету ≥ порогу — результат «Так».
+                    Нижчий поріг — більше позитивних результатів.
+                  </span>
+                </span>
+              </label>
+              <div class="threshold-control">
+                <input
+                  type="range"
+                  id="prediction_threshold"
+                  name="prediction_threshold"
+                  min="{{ threshold_min_percent }}"
+                  max="{{ threshold_max_percent }}"
+                  step="{{ threshold_step }}"
+                  value="{{ threshold_percent }}"
+                  aria-valuemin="{{ threshold_min_percent }}"
+                  aria-valuemax="{{ threshold_max_percent }}"
+                  aria-valuenow="{{ threshold_percent }}"
+                  aria-valuetext="{{ threshold_percent }} відсотків"
+                >
+                <output
+                  id="threshold-display"
+                  class="threshold-value"
+                  for="prediction_threshold"
+                >{{ threshold_percent }}%</output>
+              </div>
+              <p class="threshold-hint">
+                {{ threshold_min_percent }}% — більше «Так» ·
+                {{ threshold_max_percent }}% — більше «Ні»
+              </p>
+            </div>
 
-      <button type="submit" class="full-width">Передбачити</button>
+            <button type="submit" class="full-width">Передбачити</button>
           </form>
         </section>
       </aside>

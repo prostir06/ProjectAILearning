@@ -262,6 +262,15 @@ def test_get_error_message_prediction_and_generic():
     assert "непередбачена" in get_error_message(RuntimeError("x")).lower()
 
 
+def test_get_selection_score_invalid_metrics():
+    """_get_selection_score повертає 0.0 для некоректних метрик."""
+    from app import _get_selection_score
+
+    assert _get_selection_score(None) == 0.0
+    assert _get_selection_score({"selection_score": "bad"}) == 0.0
+    assert _get_selection_score({"roc_auc": "x", "recall": 1, "f1": 1}) == 0.0
+
+
 def test_index_post_custom_threshold(client, sample_person):
     """POST передає користувацький поріг у predict_with_summary."""
     form_data = {key: str(value) for key, value in sample_person.items()}

@@ -171,18 +171,24 @@ def compute_selection_score(metrics: dict) -> float:
     """
     Рахує зважений бал для вибору найкращої моделі.
 
+    Формула: ROC-AUC×0.5 + Recall×0.3 + F1×0.2 (див. BEST_MODEL_WEIGHTS).
+
     Args:
-        metrics: Метрики однієї моделі.
+        metrics: Метрики однієї моделі (roc_auc, recall, f1).
 
     Returns:
-        Композитний бал (вище — краще).
+        Композитний бал (вище — краще). При відсутніх ключах — 0.0.
     """
-    return round(
-        BEST_MODEL_WEIGHTS["roc_auc"] * metrics["roc_auc"]
-        + BEST_MODEL_WEIGHTS["recall"] * metrics["recall"]
-        + BEST_MODEL_WEIGHTS["f1"] * metrics["f1"],
-        4,
-    )
+    try:
+        return round(
+            BEST_MODEL_WEIGHTS["roc_auc"] * float(metrics["roc_auc"])
+            + BEST_MODEL_WEIGHTS["recall"] * float(metrics["recall"])
+            + BEST_MODEL_WEIGHTS["f1"] * float(metrics["f1"]),
+            4,
+        )
+    except (KeyError, TypeError, ValueError):
+        # Неповні або нечислові метрики не повинні зупиняти навчання інших моделей.
+        return 0.0
 
 
 def select_best_model_key(metrics_by_model: dict[str, dict]) -> str:
@@ -194,11 +200,26 @@ def select_best_model_key(metrics_by_model: dict[str, dict]) -> str:
 
     Returns:
         Ключ найкращої моделі.
+
+    Raises:
+        DataLoadError: Якщо словник метрик порожній.
     """
-    return max(
-        metrics_by_model,
-        key=lambda key: metrics_by_model[key]["selection_score"],
-    )
+    if not metrics_by_model:
+        raise DataLoadError(
+            "Немає навчених моделей для вибору найкращої."
+        )
+
+    try:
+        return max(
+            metrics_by_model,
+            key=lambda key: float(
+                metrics_by_model[key].get("selection_score", 0.0)
+            ),
+        )
+    except (TypeError, ValueError) as exc:
+        raise DataLoadError(
+            "Некоректні selection_score у метриках моделей."
+        ) from exc
 
 
 def _get_tuning_sample(x_train, y_train):

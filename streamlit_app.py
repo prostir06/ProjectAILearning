@@ -206,17 +206,28 @@ def ensure_models_ready() -> bool:
     if MODELS_BUNDLE_PATH.exists():
         return True
 
+    # Локальний / Docker cold-start: навчаємо без тюнінгу, щоб UI стартував швидше.
     from train_diabetes_model import (
         save_feature_importance,
         save_metrics_json,
         save_models_bundle,
         train_all_models,
     )
+    from exceptions import DataLoadError
 
-    models, metrics, best_key, importance = train_all_models(enable_tuning=False)
-    save_models_bundle(models, metrics, best_key, importance)
-    save_metrics_json(metrics)
-    save_feature_importance(importance)
+    try:
+        models, metrics, best_key, importance = train_all_models(
+            enable_tuning=False,
+        )
+        save_models_bundle(models, metrics, best_key, importance)
+        save_metrics_json(metrics)
+        save_feature_importance(importance)
+    except (DataLoadError, OSError, ValueError) as exc:
+        # Передаємо далі — main() покаже повідомлення користувачу.
+        raise RuntimeError(
+            f"Не вдалося навчити моделі при першому запуску: {exc}"
+        ) from exc
+
     reset_pipeline_cache()
     return MODELS_BUNDLE_PATH.exists()
 
@@ -288,6 +299,17 @@ def load_importance_table() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def _escape_html(text: object) -> str:
+    """Екранує HTML-спецсимволи для безпечного вставлення в розмітку."""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
 def build_donut_html(
     percent: int,
     threshold_percent: int,
@@ -314,6 +336,14 @@ def build_donut_html(
     Returns:
         HTML-рядок для st.markdown(..., unsafe_allow_html=True).
     """
+    # Обмежуємо відсотки, щоб CSS conic-gradient і SVG не ламались.
+    try:
+        percent = max(0, min(100, int(percent)))
+        threshold_percent = max(0, min(100, int(threshold_percent)))
+    except (TypeError, ValueError):
+        percent = 0
+        threshold_percent = 50
+
     size = 140 if small else 180
     hole = 100 if small else 132
     value_size = "1.75rem" if small else "2.25rem"
@@ -321,6 +351,7 @@ def build_donut_html(
     positive_class = " st-donut-positive" if is_positive else ""
     threshold_rotation = threshold_percent * 3.6
     wrap_class = "st-donut-wrap compact" if compact else "st-donut-wrap"
+    safe_label = _escape_html(donut_label)
 
     return f"""
 <div class="{wrap_class}">
@@ -340,22 +371,11 @@ def build_donut_html(
     </svg>
     <div class="st-donut-hole">
       <span class="st-donut-value">{percent}%</span>
-      <span class="st-donut-label">{donut_label}</span>
+      <span class="st-donut-label">{safe_label}</span>
     </div>
   </div>
 </div>
 """
-
-
-def _escape_html(text: object) -> str:
-    """Екранує HTML-спецсимволи для безпечного вставлення в розмітку."""
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
 
 
 def build_model_card_html(item: dict, threshold_percent: int) -> str:

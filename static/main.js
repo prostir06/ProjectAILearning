@@ -1,7 +1,7 @@
 /**
  * Клієнтська валідація форми передбачення діабету.
  * Дублює серверні діапазони з config.VALID_RANGES для швидкого зворотного зв'язку.
- * Стиль коду: StandardJS (const/let, без крапок з комою).
+ * Стиль коду: StandardJS (const/let, без крапок з комою, IIFE).
  */
 'use strict'
 
@@ -22,9 +22,14 @@
    * @returns {string|null} Текст помилки або null, якщо поле валідне.
    */
   function validateNumberField (input, rule) {
-    const value = Number(input.value)
+    if (!input || !rule) {
+      return null
+    }
 
-    if (input.value === '' || Number.isNaN(value)) {
+    const raw = String(input.value).trim()
+    const value = Number(raw)
+
+    if (raw === '' || Number.isNaN(value)) {
       return rule.label + ' має бути числом.'
     }
 
@@ -42,25 +47,34 @@
    * @param {string|null} message - Текст помилки.
    */
   function setFieldError (input, message) {
-    const errorId = input.id + '-error'
-    let existing = document.getElementById(errorId)
-
-    if (message) {
-      input.setAttribute('aria-invalid', 'true')
-      if (!existing) {
-        existing = document.createElement('span')
-        existing.id = errorId
-        existing.className = 'field-error'
-        existing.setAttribute('role', 'alert')
-        input.insertAdjacentElement('afterend', existing)
-      }
-      existing.textContent = message
+    if (!input || !input.id) {
       return
     }
 
-    input.removeAttribute('aria-invalid')
-    if (existing) {
-      existing.remove()
+    try {
+      const errorId = input.id + '-error'
+      let existing = document.getElementById(errorId)
+
+      if (message) {
+        input.setAttribute('aria-invalid', 'true')
+        if (!existing) {
+          existing = document.createElement('span')
+          existing.id = errorId
+          existing.className = 'field-error'
+          existing.setAttribute('role', 'alert')
+          input.insertAdjacentElement('afterend', existing)
+        }
+        existing.textContent = message
+        return
+      }
+
+      input.removeAttribute('aria-invalid')
+      if (existing) {
+        existing.remove()
+      }
+    } catch (error) {
+      // DOM може бути недоступний у тестах / обмежених середовищах.
+      console.warn('Не вдалося оновити помилку поля:', error)
     }
   }
 
@@ -71,6 +85,10 @@
    * @returns {boolean} true, якщо всі поля коректні.
    */
   function validateForm (form) {
+    if (!form || !form.elements) {
+      return false
+    }
+
     let isValid = true
 
     Object.keys(FIELD_RULES).forEach(function (fieldName) {
@@ -89,6 +107,27 @@
     return isValid
   }
 
+  /**
+   * Оновлює текстовий індикатор слайдера порогу й ARIA-атрибути.
+   *
+   * @param {HTMLInputElement} slider - Елемент input[type=range].
+   * @param {HTMLElement} display - Елемент для відображення відсотків.
+   */
+  function updateThresholdDisplay (slider, display) {
+    if (!(slider instanceof HTMLInputElement) || !display) {
+      return
+    }
+
+    try {
+      const value = slider.value
+      display.textContent = value + '%'
+      slider.setAttribute('aria-valuenow', value)
+      slider.setAttribute('aria-valuetext', value + ' відсотків')
+    } catch (error) {
+      console.warn('Не вдалося оновити поріг:', error)
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('prediction-form')
     if (!form) {
@@ -105,7 +144,10 @@
       const input = form.elements.namedItem(fieldName)
       if (input instanceof HTMLInputElement) {
         input.addEventListener('input', function () {
-          setFieldError(input, validateNumberField(input, FIELD_RULES[fieldName]))
+          setFieldError(
+            input,
+            validateNumberField(input, FIELD_RULES[fieldName])
+          )
         })
       }
     })
@@ -113,14 +155,10 @@
     const thresholdSlider = document.getElementById('prediction_threshold')
     const thresholdDisplay = document.getElementById('threshold-display')
     if (thresholdSlider instanceof HTMLInputElement && thresholdDisplay) {
-      const updateThresholdDisplay = function () {
-        const value = thresholdSlider.value
-        thresholdDisplay.textContent = value + '%'
-        thresholdSlider.setAttribute('aria-valuenow', value)
-        thresholdSlider.setAttribute('aria-valuetext', value + ' відсотків')
-      }
-      thresholdSlider.addEventListener('input', updateThresholdDisplay)
-      updateThresholdDisplay()
+      thresholdSlider.addEventListener('input', function () {
+        updateThresholdDisplay(thresholdSlider, thresholdDisplay)
+      })
+      updateThresholdDisplay(thresholdSlider, thresholdDisplay)
     }
   })
 }())
