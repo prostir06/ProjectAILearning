@@ -38,7 +38,6 @@ from ui_helpers import (
     build_model_card_html,
     build_results_grid_html,
     build_summary_block_html,
-    escape_html as _escape_html,
 )
 from validators import validate_person_data
 

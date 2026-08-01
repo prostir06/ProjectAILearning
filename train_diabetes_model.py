@@ -50,10 +50,8 @@ from config import (
 )
 from exceptions import DataLoadError
 from model_registry import (
-    CATEGORICAL_FEATURES,
     DEFAULT_MODEL_KEY,
     MODEL_LABELS_UK,
-    NUMERIC_FEATURES,
     TUNING_PARAM_GRIDS,
     build_pipeline as registry_build_pipeline,
     create_smote,
@@ -66,8 +64,6 @@ try:
     import xgboost
 except Exception:  # pragma: no cover - optional metadata only
     xgboost = None
-
-__all_feature_types__ = (CATEGORICAL_FEATURES, NUMERIC_FEATURES)
 
 MODEL_SHORTCUTS = {
     "rf": "random_forest",

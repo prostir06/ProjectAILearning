@@ -145,8 +145,10 @@ def test_build_summary_block_html_contains_label():
 
 
 def test_escape_html_replaces_special_chars():
-    """_escape_html екранує &, <, >, \"."""
-    assert streamlit_app._escape_html('a&b<c>"') == "a&amp;b&lt;c&gt;&quot;"
+    """escape_html екранує &, <, >, \"."""
+    from ui_helpers import escape_html
+
+    assert escape_html('a&b<c>"') == "a&amp;b&lt;c&gt;&quot;"
 
 
 def test_load_metrics_table_success():

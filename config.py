@@ -27,9 +27,6 @@ BEST_MODELS_BUNDLE_PATH = BASE_DIR / "diabetes_models_best.joblib"
 # Шлях до JSON із метриками похибки кожного алгоритму.
 METRICS_PATH = BASE_DIR / "model_metrics.json"
 
-# Зворотна сумісність: основний шлях до моделей.
-MODEL_PATH = MODELS_BUNDLE_PATH
-
 # Ознаки (features), які використовує модель.
 FEATURES = [
     "gender",
