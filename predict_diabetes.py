@@ -326,10 +326,25 @@ def apply_threshold_to_results(
         threshold: Поріг ймовірності (0.0–1.0).
 
     Returns:
-        Оновлений список результатів.
+        Оновлений список результатів (той самий об'єкт).
     """
+    try:
+        threshold_value = float(threshold)
+    except (TypeError, ValueError):
+        threshold_value = PREDICTION_THRESHOLD
+
     for item in results:
-        diabetes = int(item["probability"] >= threshold)
+        if not isinstance(item, dict):
+            continue
+        try:
+            probability = float(item["probability"])
+        except (KeyError, TypeError, ValueError):
+            # Пропускаємо пошкоджений запис, щоб не валити весь UI.
+            item["diabetes"] = 0
+            item["label"] = "Ні"
+            continue
+
+        diabetes = int(probability >= threshold_value)
         item["diabetes"] = diabetes
         item["label"] = "Так" if diabetes else "Ні"
     return results

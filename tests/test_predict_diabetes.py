@@ -221,6 +221,38 @@ def test_apply_threshold_to_results():
     assert results[1]["label"] == "Так"
 
 
+def test_apply_threshold_skips_broken_items():
+    """Пошкоджені записи отримують «Ні», без винятку."""
+    results = [
+        {"probability": "bad"},
+        "not-a-dict",
+        {"probability": 0.9},
+    ]
+    updated = apply_threshold_to_results(results, threshold=0.5)
+    assert updated[0]["label"] == "Ні"
+    assert updated[2]["diabetes"] == 1
+
+
+def test_get_bundle_optimal_threshold_from_metadata():
+    """Читає optimal_threshold з metadata бандла."""
+    from predict_diabetes import get_bundle_optimal_threshold
+
+    bundle = {"metadata": {"optimal_threshold": 0.35}, "metrics": {}}
+    with patch("predict_diabetes._get_bundle", return_value=bundle):
+        assert get_bundle_optimal_threshold(default=0.5) == 0.35
+
+
+def test_get_bundle_optimal_threshold_falls_back_on_error():
+    """Відсутній бандл → default."""
+    from predict_diabetes import get_bundle_optimal_threshold
+
+    with patch(
+        "predict_diabetes._get_bundle",
+        side_effect=ModelNotFoundError("missing"),
+    ):
+        assert get_bundle_optimal_threshold(default=0.55) == 0.55
+
+
 def test_predict_with_summary_respects_custom_threshold(
     sample_person,
     trained_pipeline,

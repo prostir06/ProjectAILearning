@@ -73,3 +73,20 @@ def test_api_predict_accepts_percent_threshold_and_best_mode(
         threshold=0.3,
         mode="best",
     )
+
+
+def test_api_explain_returns_list(client):
+    """GET /api/explain повертає список ознак."""
+    items = [{"feature": "age", "label_uk": "Вік", "importance": 0.5}]
+    with patch("app.get_explanation", return_value=items):
+        response = client.get("/api/explain")
+
+    assert response.status_code == 200
+    assert response.get_json() == items
+
+
+def test_api_predict_rejects_non_object_json(client):
+    """Необ'єктний JSON → 400."""
+    response = client.post("/api/predict", json=["not", "object"])
+    assert response.status_code == 400
+    assert "error" in response.get_json()

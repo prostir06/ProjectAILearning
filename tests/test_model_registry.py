@@ -77,3 +77,9 @@ def test_create_smote_rejects_zero_minority():
     """create_smote відхиляє minority_count < 1."""
     with pytest.raises(ValueError, match="minority_count"):
         create_smote(minority_count=0)
+
+
+def test_get_model_pipelines_filters_by_model_keys():
+    """model_keys обмежує набір pipeline."""
+    pipelines = get_model_pipelines(model_keys=["xgboost", "random_forest"])
+    assert set(pipelines) == {"xgboost", "random_forest"}

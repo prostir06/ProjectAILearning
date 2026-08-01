@@ -27,3 +27,10 @@ def test_compute_ignores_stored_score():
 def test_get_prefers_stored_score():
     """get_selection_score бере збережене значення, якщо воно валідне."""
     assert get_selection_score({"selection_score": 0.42}) == 0.42
+
+
+def test_get_selection_score_recomputes_when_stored_missing():
+    """Без збереженого score — перерахунок з метрик."""
+    assert get_selection_score(
+        {"roc_auc": 0.8, "recall": 0.8, "f1": 0.8}
+    ) == 0.8

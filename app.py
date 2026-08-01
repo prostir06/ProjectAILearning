@@ -283,8 +283,17 @@ if csrf is not None:
 
 @app.route("/api/explain", methods=["GET"])
 def api_explain():
-    """Повертає важливість ознак для найкращої моделі."""
-    return jsonify(get_explanation())
+    """
+    Повертає важливість ознак для найкращої моделі.
+
+    Завжди 200 + JSON-масив (може бути порожнім), щоб клієнт
+    міг спокійно малювати порожній стан.
+    """
+    try:
+        return jsonify(get_explanation())
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Несподівана помилка в /api/explain")
+        return jsonify({"error": get_error_message(exc), "items": []}), 500
 
 
 @app.route("/", methods=["GET", "POST"])

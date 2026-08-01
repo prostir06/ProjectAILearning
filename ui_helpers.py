@@ -146,13 +146,29 @@ def build_model_card_html(item: dict, threshold_percent: int) -> str:
 
 
 def build_results_grid_html(models: list[dict], threshold_percent: int) -> str:
-    """Сітка карток алгоритмів 3×2 з однаковим вирівнюванням."""
+    """
+    Сітка карток алгоритмів 3×2 з однаковим вирівнюванням.
+
+    Args:
+        models: Список результатів передбачення.
+        threshold_percent: Поріг у відсотках.
+
+    Returns:
+        HTML-контейнер ``.st-results-grid``.
+    """
     if not models:
         return '<div class="st-results-grid"></div>'
 
-    cards = "".join(
-        build_model_card_html(item, threshold_percent) for item in models
-    )
+    try:
+        threshold = clamp_percent(threshold_percent, default=50)
+        cards = "".join(
+            build_model_card_html(item, threshold)
+            for item in models
+            if isinstance(item, dict)
+        )
+    except Exception:  # noqa: BLE001 — UI не повинен падати
+        return '<div class="st-results-grid"></div>'
+
     return f'<div class="st-results-grid">{cards}</div>'
 
 
@@ -162,17 +178,35 @@ def build_summary_block_html(
     summary_percent: int,
     summary_positive: bool,
 ) -> str:
-    """HTML блоку загального підсумку з центрованою donut-діаграмою."""
+    """
+    HTML блоку загального підсумку з центрованою donut-діаграмою.
+
+    Args:
+        summary: Словник підсумку (очікується ключ ``label``).
+        threshold_percent: Поріг у відсотках.
+        summary_percent: Середня ймовірність у відсотках.
+        summary_positive: True, якщо підсумок «Так».
+
+    Returns:
+        HTML блоку ``.st-summary-block``.
+    """
+    if not isinstance(summary, dict):
+        summary = {}
+
     result_class = (
         "st-result-positive" if summary_positive else "st-result-negative"
     )
     label = escape_html(summary.get("label", "—"))
-    donut = build_donut_html(
-        summary_percent,
-        threshold_percent,
-        "середня ймовірність",
-        summary_positive,
-    )
+    try:
+        donut = build_donut_html(
+            summary_percent,
+            threshold_percent,
+            "середня ймовірність",
+            summary_positive,
+        )
+    except Exception:  # noqa: BLE001
+        donut = ""
+
     return f"""
 <div class="st-summary-block">
   {donut}

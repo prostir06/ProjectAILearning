@@ -1,8 +1,10 @@
 """
 Спільний bootstrap моделей для Streamlit / Flask cold-start.
 
-Якщо diabetes_models.joblib відсутній — навчає моделі (без тюнінгу)
-і зберігає повний + легкий (best-only) бандли.
+Якщо ``diabetes_models.joblib`` відсутній — навчає моделі (без тюнінгу
+за замовчуванням) і зберігає повний + легкий (best-only) бандли.
+Для продакшену рекомендується комітити готовий joblib, а не покладатися
+на cold-start.
 """
 
 from __future__ import annotations
@@ -21,19 +23,47 @@ from predict_diabetes import reset_pipeline_cache
 logger = logging.getLogger(__name__)
 
 
+def _resolve_max_rows() -> int:
+    """
+    Кількість рядків для швидкого навчання при першому старті.
+
+    Returns:
+        Додатне ціле; якщо env/константа некоректні — 20000.
+    """
+    max_rows = QUICK_TRAIN_MAX_ROWS
+    if max_rows > 0:
+        return max_rows
+
+    raw = os.environ.get("QUICK_TRAIN_MAX_ROWS", "20000")
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Некоректний QUICK_TRAIN_MAX_ROWS=%r, використано 20000",
+            raw,
+        )
+        return 20000
+
+    return parsed if parsed > 0 else 20000
+
+
 def ensure_models_ready(*, enable_tuning: bool = False) -> bool:
     """
     Гарантує наявність пакета моделей на диску.
 
+    Args:
+        enable_tuning: Чи запускати RandomizedSearchCV (повільніше).
+
     Returns:
-        True, якщо моделі доступні.
+        True, якщо повний бандл доступний після перевірки / навчання.
 
     Raises:
-        RuntimeError: Якщо навчання / збереження не вдалось.
+        RuntimeError: Якщо навчання або збереження не вдалось.
     """
     if MODELS_BUNDLE_PATH.exists():
         return True
 
+    # Лінивий імпорт: уникаємо важкого sklearn-циклу при звичайному старті.
     from train_diabetes_model import (
         save_feature_importance,
         save_metrics_json,
@@ -41,11 +71,7 @@ def ensure_models_ready(*, enable_tuning: bool = False) -> bool:
         train_all_models,
     )
 
-    max_rows = QUICK_TRAIN_MAX_ROWS
-    if max_rows <= 0:
-        # Cold-start за замовчуванням обмежує вибірку, щоб UI не зависав надовго.
-        max_rows = int(os.environ.get("QUICK_TRAIN_MAX_ROWS", "20000"))
-
+    max_rows = _resolve_max_rows()
     logger.info(
         "Моделі відсутні — швидке навчання (max_rows=%s, tuning=%s)",
         max_rows,
@@ -55,9 +81,9 @@ def ensure_models_ready(*, enable_tuning: bool = False) -> bool:
     try:
         models, metrics, best_key, importance, optimal_threshold = (
             train_all_models(
-            enable_tuning=enable_tuning,
-            max_rows=max_rows,
-        )
+                enable_tuning=enable_tuning,
+                max_rows=max_rows,
+            )
         )
         save_models_bundle(
             models,
@@ -73,6 +99,22 @@ def ensure_models_ready(*, enable_tuning: bool = False) -> bool:
         raise RuntimeError(
             f"Не вдалося навчити моделі при першому запуску: {exc}"
         ) from exc
+    except Exception as exc:  # noqa: BLE001
+        # Несподівані збої (наприклад, несумісна версія xgboost).
+        raise RuntimeError(
+            f"Несподівана помилка cold-start навчання: {exc}"
+        ) from exc
 
-    reset_pipeline_cache()
-    return MODELS_BUNDLE_PATH.exists() and BEST_MODELS_BUNDLE_PATH.exists()
+    try:
+        reset_pipeline_cache()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Не вдалося скинути кеш моделей: %s", exc)
+
+    # Best-only файл бажаний, але не обов'язковий для роботи UI.
+    if not BEST_MODELS_BUNDLE_PATH.exists():
+        logger.warning(
+            "Легкий бандл %s не створено; повний бандл доступний",
+            BEST_MODELS_BUNDLE_PATH.name,
+        )
+
+    return MODELS_BUNDLE_PATH.exists()
