@@ -29,43 +29,41 @@
 ## Можливості
 
 - 6 алгоритмів: Random Forest, XGBoost, градієнтний бустинг, AdaBoost, дерево рішень, логістична регресія
-- SMOTE на train-вибірці, метрики на test (80/20)
-- композитний **рейтинг** моделей (ROC-AUC 50% + Recall 30% + F1 20%)
-- гіперпараметричний тюнінг топ-2 моделей
-- веб-форма з **слайдером порогу** ймовірності
-- UI на **Streamlit** (деплой на [Streamlit Community Cloud](https://streamlit.io/cloud)) + локальний Flask
-- unit-тести (`pytest`)
+- **3-way split** (train / validation / test): вибір і тюнінг на validation, фінальні метрики на test
+- SMOTE лише для логістичної регресії; для дерев/бустингу — `class_weight` / `scale_pos_weight`
+- композитний **рейтинг** (ROC-AUC 50% + Recall 30% + F1 20%) + PR-AUC
+- гіперпараметричний тюнінг топ-2 моделей (scoring узгоджений із рейтингом)
+- оптимальний поріг на validation (Youden) → default у UI
+- зважений ensemble-підсумок; режим передбачення `all` | `best`
+- веб-форма зі слайдером порогу та історією куріння
+- UI: **Streamlit** (Cloud) + **Flask** (Waitress, CSRF, `/health`, `/api/predict`, `/api/explain`)
+- Docker (non-root), CI (GitHub Actions), unit-тести (`pytest`)
 
 ## Структура
 
 ```
 ProjectAILearning/
 ├── streamlit_app.py            # головний UI для Streamlit Cloud
-├── app.py                      # Flask UI (локально, опційно) + спільні хелпери
-├── train_diabetes_model.py     # навчання та збереження моделей
-├── predict_diabetes.py         # передбачення
+├── app.py                      # Flask UI + REST API
+├── train_diabetes_model.py     # навчання (CLI: --no-tune, --models, --sample)
+├── predict_diabetes.py         # передбачення (mode=all|best)
 ├── model_registry.py           # реєстр алгоритмів / pipelines
-├── validators.py               # валідація даних пацієнта
-├── config.py                   # шляхи та константи
-├── exceptions.py               # користувацькі винятки
-├── diabetes_models.joblib      # навчені моделі (потрібні для деплою)
-├── diabetes_prediction_dataset.csv
-├── model_metrics.json
-├── feature_importance.json
-├── .streamlit/config.toml      # тема Streamlit
-├── packages.txt                # системні пакети для Linux (Cloud)
-├── docs/screenshots/           # скріншоти для README
-├── templates/ / static/        # Flask UI
-├── Dockerfile                  # образ для Streamlit / Flask
-├── docker-compose.yml          # запуск у контейнері
-├── requirements-docker.txt     # залежності образу (без pytest, xgboost CPU)
+├── scoring.py                  # єдиний selection_score
+├── ui_helpers.py               # спільні HTML donut-хелпери
+├── bootstrap_models.py         # cold-start навчання
+├── explainability.py           # важливість ознак для /api/explain
+├── validators.py / config.py / exceptions.py
+├── diabetes_models.joblib      # повний пакет моделей (деплой)
+├── .github/workflows/ci.yml
+├── Dockerfile / docker-compose.yml
+├── templates/ / static/
 ├── tests/
 └── requirements.txt
 ```
 
 ## Вимоги
 
-- Python 3.10+ 
+- Python 3.10+
 - залежності з `requirements.txt`
 
 ## Швидкий старт (локально)
@@ -87,20 +85,25 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Якщо `diabetes_models.joblib` відсутній, додаток спробує швидко навчити моделі без тюнінгу при першому старті.
+Якщо `diabetes_models.joblib` відсутній, додаток швидко навчить моделі без тюнінгу
+(`QUICK_TRAIN_MAX_ROWS`, за замовчуванням 20000). Для продакшену комітьте готовий joblib.
 
-### Flask (опційно)
+### Flask
 
 ```bash
 python app.py
 ```
 
-Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000). Debug: `FLASK_DEBUG=1`.
+Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000).  
+Health: `GET /health`. API: `POST /api/predict`, `GET /api/explain`.  
+Debug: `FLASK_DEBUG=1`. Секрет: `FLASK_SECRET_KEY`.
 
-### Навчання моделей вручну
+### Навчання моделей
 
 ```bash
 python train_diabetes_model.py
+python train_diabetes_model.py --no-tune --sample 20000
+python train_diabetes_model.py --models rf,xgb --serve-best-only
 ```
 
 ### Тести
@@ -111,43 +114,18 @@ python -m pytest tests/ -v
 
 ## Docker
 
-Потрібні [Docker](https://docs.docker.com/get-docker/) та Docker Compose.
-
-### Streamlit (основний UI)
-
 ```bash
-docker compose up --build
-```
-
-Відкрийте [http://localhost:8501](http://localhost:8501).
-
-### Flask (опційно)
-
-```bash
-docker compose --profile flask up --build
-```
-
-Відкрийте [http://localhost:5000](http://localhost:5000).
-
-### Окремі команди
-
-```bash
-# лише Streamlit
-docker build -t diabetes-prediction .
-docker run --rm -p 8501:8501 diabetes-prediction
-
-# лише Flask
-docker run --rm -p 5000:5000 -e HOST=0.0.0.0 diabetes-prediction python app.py
+docker compose up --build                 # Streamlit :8501
+docker compose --profile flask up --build # + Flask :5000 (Waitress)
 ```
 
 ## Деплой на Streamlit Community Cloud
 
-1. Зайдіть на [share.streamlit.io](https://share.streamlit.io) / Cloud і увійдіть через GitHub.
-2. **New app** → репозиторій `prostir06/ProjectAILearning`, гілка `main`.
-3. **Main file path:** `streamlit_app.py`
-4. Натисніть **Deploy**.
+1. [share.streamlit.io](https://share.streamlit.io) → GitHub.
+2. Репозиторій `prostir06/ProjectAILearning`, гілка `main`.
+3. **Main file path:** `streamlit_app.py` → **Deploy**.
 
-Cloud установить залежності з `requirements.txt` і системні пакети з `packages.txt` (потрібно для XGBoost на Linux).
+Cloud: `requirements.txt` + `packages.txt` (`libgomp1` для XGBoost).
 
 Публічний репозиторій: https://github.com/prostir06/ProjectAILearning
 

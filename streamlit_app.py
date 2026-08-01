@@ -10,11 +10,13 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+import bootstrap_models
 from app import format_metrics_for_display, get_error_message
 from config import (
     DEFAULT_FORM,
     DEFAULT_THRESHOLD_PERCENT,
     MODELS_BUNDLE_PATH,
+    SMOKING_OPTIONS_UK,
     THRESHOLD_MAX,
     THRESHOLD_MIN,
     THRESHOLD_STEP_PERCENT,
@@ -27,9 +29,16 @@ from exceptions import (
 )
 from predict_diabetes import (
     get_feature_importance,
+    get_bundle_optimal_threshold,
     get_training_metrics,
     predict_with_summary,
-    reset_pipeline_cache,
+)
+from ui_helpers import (
+    build_donut_html,
+    build_model_card_html,
+    build_results_grid_html,
+    build_summary_block_html,
+    escape_html as _escape_html,
 )
 from validators import validate_person_data
 
@@ -194,42 +203,17 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner="Завантаження моделей…")
 def ensure_models_ready() -> bool:
-    """
-    Гарантує наявність пакета моделей.
-
-    Якщо diabetes_models.joblib відсутній (локально без артефакту),
-    навчає моделі без тюнінгу (прискорений шлях для першого запуску).
-
-    Returns:
-        True, якщо моделі доступні після перевірки / навчання.
-    """
+    """Гарантує наявність пакета моделей."""
     if MODELS_BUNDLE_PATH.exists():
         return True
-
-    # Локальний / Docker cold-start: навчаємо без тюнінгу, щоб UI стартував швидше.
-    from train_diabetes_model import (
-        save_feature_importance,
-        save_metrics_json,
-        save_models_bundle,
-        train_all_models,
-    )
-    from exceptions import DataLoadError
-
     try:
-        models, metrics, best_key, importance = train_all_models(
-            enable_tuning=False,
-        )
-        save_models_bundle(models, metrics, best_key, importance)
-        save_metrics_json(metrics)
-        save_feature_importance(importance)
-    except (DataLoadError, OSError, ValueError) as exc:
-        # Передаємо далі — main() покаже повідомлення користувачу.
+        return bootstrap_models.ensure_models_ready()
+    except RuntimeError as exc:
+        if "першому запуску" in str(exc):
+            raise
         raise RuntimeError(
             f"Не вдалося навчити моделі при першому запуску: {exc}"
         ) from exc
-
-    reset_pipeline_cache()
-    return MODELS_BUNDLE_PATH.exists()
 
 
 @st.cache_data(show_spinner=False)
@@ -252,7 +236,7 @@ def load_metrics_table() -> pd.DataFrame:
 
     try:
         table = pd.DataFrame(rows)
-        return pd.DataFrame({
+        formatted = {
             "#": table["rank"],
             "Алгоритм": table["model_name"],
             "Рейтинг %": (table["selection_score"] * 100).round(1),
@@ -267,7 +251,10 @@ def load_metrics_table() -> pd.DataFrame:
             "Тюнінг": table["tuned"].map(
                 lambda value: "так" if value else ""
             ),
-        })
+        }
+        if "pr_auc" in table.columns and table["pr_auc"].notna().any():
+            formatted["PR-AUC %"] = (table["pr_auc"] * 100).round(1)
+        return pd.DataFrame(formatted)
     except (KeyError, TypeError, ValueError):
         return pd.DataFrame()
 
@@ -297,196 +284,6 @@ def load_importance_table() -> pd.DataFrame:
         })
     except (KeyError, TypeError, ValueError):
         return pd.DataFrame()
-
-
-def _escape_html(text: object) -> str:
-    """Екранує HTML-спецсимволи для безпечного вставлення в розмітку."""
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
-def build_donut_html(
-    percent: int,
-    threshold_percent: int,
-    donut_label: str,
-    is_positive: bool,
-    *,
-    small: bool = False,
-    compact: bool = False,
-) -> str:
-    """
-    Генерує HTML donut-діаграми з червоною лінією порогу.
-
-    Відлік дуги й порогу починається знизу (6 год.) за годинниковою стрілкою,
-    як у Flask-інтерфейсі.
-
-    Args:
-        percent: Ймовірність у відсотках (0–100).
-        threshold_percent: Поріг у відсотках (0–100).
-        donut_label: Підпис у центрі діаграми.
-        is_positive: Чи результат «Так» (помаранчева дуга).
-        small: Менший розмір для карток алгоритмів.
-        compact: Без зовнішніх відступів (всередині картки).
-
-    Returns:
-        HTML-рядок для st.markdown(..., unsafe_allow_html=True).
-    """
-    # Обмежуємо відсотки, щоб CSS conic-gradient і SVG не ламались.
-    try:
-        percent = max(0, min(100, int(percent)))
-        threshold_percent = max(0, min(100, int(threshold_percent)))
-    except (TypeError, ValueError):
-        percent = 0
-        threshold_percent = 50
-
-    size = 140 if small else 180
-    hole = 100 if small else 132
-    value_size = "1.75rem" if small else "2.25rem"
-    label_size = "0.85rem" if small else "0.95rem"
-    positive_class = " st-donut-positive" if is_positive else ""
-    threshold_rotation = threshold_percent * 3.6
-    wrap_class = "st-donut-wrap compact" if compact else "st-donut-wrap"
-    safe_label = _escape_html(donut_label)
-
-    return f"""
-<div class="{wrap_class}">
-  <div
-    class="st-donut{positive_class}"
-    style="--percent: {percent}; --threshold: {threshold_percent};
-           --size: {size}px; --hole: {hole}px;
-           --value-size: {value_size}; --label-size: {label_size};"
-    role="img"
-    aria-label="Ймовірність {percent} відсотків, поріг {threshold_percent} відсотків"
-  >
-    <svg class="st-donut-threshold" viewBox="0 0 100 100" aria-hidden="true">
-      <line
-        x1="50" y1="50" x2="50" y2="90"
-        transform="rotate({threshold_rotation} 50 50)"
-      />
-    </svg>
-    <div class="st-donut-hole">
-      <span class="st-donut-value">{percent}%</span>
-      <span class="st-donut-label">{safe_label}</span>
-    </div>
-  </div>
-</div>
-"""
-
-
-def build_model_card_html(item: dict, threshold_percent: int) -> str:
-    """
-    HTML однієї картки алгоритму з вирівняними блоками.
-
-    Args:
-        item: Результат одного алгоритму (model_name, probability, …).
-        threshold_percent: Поріг у відсотках для donut-лінії.
-
-    Returns:
-        HTML-картка; при некоректних даних — порожній рядок.
-    """
-    try:
-        title = _escape_html(item.get("model_name", "Модель"))
-        if item.get("rank"):
-            title = f"#{int(item['rank'])} {title}"
-        if item.get("is_best"):
-            title += " · найкраща"
-
-        percent = int(round(float(item["probability"]) * 100))
-        is_positive = int(item["diabetes"]) == 1
-        card_class = (
-            "st-model-card-positive" if is_positive else "st-model-card-negative"
-        )
-        result_class = (
-            "st-result-positive" if is_positive else "st-result-negative"
-        )
-        label = _escape_html(item.get("label", "—"))
-
-        error_text = ""
-        if item.get("error_rate") is not None:
-            error_text = (
-                f"Похибка на тесті: {float(item['error_rate']) * 100:.1f}%"
-            )
-
-        donut = build_donut_html(
-            percent,
-            threshold_percent,
-            "ймовірність",
-            is_positive,
-            small=True,
-            compact=True,
-        )
-    except (KeyError, TypeError, ValueError):
-        return ""
-
-    return f"""
-<div class="st-model-card {card_class}">
-  <div class="st-model-card-title"><strong>{title}</strong></div>
-  <div class="st-model-card-chart">{donut}</div>
-  <p class="st-model-result {result_class}">{label}</p>
-  <p class="st-model-error">{error_text}</p>
-</div>
-"""
-
-
-def build_results_grid_html(models: list[dict], threshold_percent: int) -> str:
-    """
-    Сітка карток алгоритмів 3×2 з однаковим вирівнюванням.
-
-    Args:
-        models: Список результатів predict_with_summary()["models"].
-        threshold_percent: Поріг у відсотках.
-
-    Returns:
-        HTML-контейнер .st-results-grid.
-    """
-    if not models:
-        return '<div class="st-results-grid"></div>'
-
-    cards = "".join(
-        build_model_card_html(item, threshold_percent) for item in models
-    )
-    return f'<div class="st-results-grid">{cards}</div>'
-
-
-def build_summary_block_html(
-    summary: dict,
-    threshold_percent: int,
-    summary_percent: int,
-    summary_positive: bool,
-) -> str:
-    """
-    HTML блоку загального підсумку з центрованою donut-діаграмою.
-
-    Args:
-        summary: Словник підсумку (label, probability, …).
-        threshold_percent: Поріг у відсотках.
-        summary_percent: Середня ймовірність у відсотках.
-        summary_positive: True, якщо підсумок «Так».
-
-    Returns:
-        HTML блоку .st-summary-block.
-    """
-    result_class = (
-        "st-result-positive" if summary_positive else "st-result-negative"
-    )
-    label = _escape_html(summary.get("label", "—"))
-    donut = build_donut_html(
-        summary_percent,
-        threshold_percent,
-        "середня ймовірність",
-        summary_positive,
-    )
-    return f"""
-<div class="st-summary-block">
-  {donut}
-  <p class="st-result-label {result_class}">{label}</p>
-</div>
-"""
 
 
 def render_sidebar_form() -> tuple[dict | None, float, bool]:
@@ -529,6 +326,23 @@ def render_sidebar_form() -> tuple[dict | None, float, bool]:
         index=int(DEFAULT_FORM["heart_disease"]),
     )[1]
 
+    smoking_items = list(SMOKING_OPTIONS_UK.items())
+    default_smoking = str(DEFAULT_FORM.get("smoking_history", "No Info"))
+    default_smoking_index = next(
+        (
+            index
+            for index, (value, _) in enumerate(smoking_items)
+            if value == default_smoking
+        ),
+        len(smoking_items) - 1,
+    )
+    smoking_history = st.sidebar.selectbox(
+        "Історія куріння",
+        options=smoking_items,
+        format_func=lambda item: item[1],
+        index=default_smoking_index,
+    )[0]
+
     bmi_min, bmi_max = VALID_RANGES["bmi"]
     bmi = st.sidebar.number_input(
         "ІМТ (індекс маси тіла)",
@@ -559,11 +373,16 @@ def render_sidebar_form() -> tuple[dict | None, float, bool]:
         step=1,
     )
 
+    default_threshold_percent = int(round(
+        get_bundle_optimal_threshold(
+            default=DEFAULT_THRESHOLD_PERCENT / 100.0
+        ) * 100
+    ))
     threshold_percent = st.sidebar.slider(
         "Поріг ймовірності (%)",
         min_value=int(THRESHOLD_MIN * 100),
         max_value=int(THRESHOLD_MAX * 100),
-        value=DEFAULT_THRESHOLD_PERCENT,
+        value=default_threshold_percent,
         step=THRESHOLD_STEP_PERCENT,
         help=(
             "Якщо ймовірність ≥ порогу — результат «Так». "
@@ -578,7 +397,7 @@ def render_sidebar_form() -> tuple[dict | None, float, bool]:
         "age": age,
         "hypertension": hypertension,
         "heart_disease": heart_disease,
-        "smoking_history": "No Info",
+        "smoking_history": smoking_history,
         "bmi": bmi,
         "HbA1c_level": hba1c,
         "blood_glucose_level": glucose,

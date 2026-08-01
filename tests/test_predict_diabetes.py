@@ -243,6 +243,44 @@ def test_predict_with_summary_respects_custom_threshold(
     assert result["summary"]["label"] in ("Так", "Ні")
 
 
+def test_predict_with_summary_mode_best_returns_single_best_model(
+    sample_person,
+    trained_pipeline,
+):
+    """mode=best повертає лише найкращу модель і summary для неї."""
+    bundle = {
+        "models": {"random_forest": trained_pipeline},
+        "metrics": {
+            "random_forest": {
+                "error_rate": 0.03,
+                "selection_score": 0.9,
+                "roc_auc": 0.95,
+            }
+        },
+        "model_labels": {"random_forest": "Random Forest"},
+        "best_model": "random_forest",
+        "default_model": "random_forest",
+    }
+
+    with patch("predict_diabetes._get_bundle", return_value=bundle):
+        with patch(
+            "predict_diabetes.get_training_metrics",
+            return_value=bundle["metrics"],
+        ):
+            result = predict_with_summary(
+                sample_person,
+                threshold=0.5,
+                mode="best",
+            )
+
+    assert result["mode"] == "best"
+    assert len(result["models"]) == 1
+    assert result["models"][0]["model_key"] == "random_forest"
+    assert result["models"][0]["is_best"] is True
+    assert result["summary"]["total_models"] == 1
+    assert result["summary"]["weighted"] is False
+
+
 def test_get_bundle_corrupted_file(tmp_path):
     """Пошкоджений файл моделей викликає PredictionError."""
     from predict_diabetes import _get_bundle
@@ -309,12 +347,12 @@ def test_get_training_metrics_invalid_type(tmp_path):
 
 
 def test_get_selection_score_handles_invalid_values():
-    """_get_selection_score стійкий до некоректних типів."""
-    from predict_diabetes import _get_selection_score
+    """get_selection_score стійкий до некоректних типів."""
+    from scoring import get_selection_score
 
-    assert _get_selection_score(None) == 0.0
-    assert _get_selection_score("bad") == 0.0
-    assert _get_selection_score({"selection_score": "x"}) == 0.0
-    assert _get_selection_score(
+    assert get_selection_score(None) == 0.0
+    assert get_selection_score("bad") == 0.0
+    assert get_selection_score({"selection_score": "x"}) == 0.0
+    assert get_selection_score(
         {"roc_auc": 1.0, "recall": 1.0, "f1": 1.0}
     ) == 1.0

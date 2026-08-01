@@ -10,12 +10,18 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system appuser \
+    && useradd --system --gid appuser --create-home --home-dir /home/appuser appuser
+
 # requirements-docker.txt: без pytest; xgboost<3 щоб уникнути великого CUDA wheel.
 COPY requirements-docker.txt .
 ENV PIP_DEFAULT_TIMEOUT=300
 RUN pip install --no-cache-dir -r requirements-docker.txt
 
 COPY . .
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8501
 

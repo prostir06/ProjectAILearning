@@ -157,6 +157,7 @@ def test_load_metrics_table_success():
             "model_name": "RF",
             "selection_score": 0.9,
             "roc_auc": 0.95,
+            "pr_auc": 0.88,
             "recall": 0.8,
             "f1": 0.85,
             "accuracy": 0.97,
@@ -176,6 +177,7 @@ def test_load_metrics_table_success():
     assert isinstance(table, pd.DataFrame)
     assert not table.empty
     assert table.iloc[0]["Алгоритм"] == "RF"
+    assert table.iloc[0]["PR-AUC %"] == 88.0
     assert table.iloc[0]["Найкраща"] == "так"
 
 
@@ -246,14 +248,14 @@ def test_build_donut_html_escapes_label():
 
 
 def test_ensure_models_ready_training_failure(tmp_path):
-    """Помилка навчання при відсутності joblib → RuntimeError."""
+    """Помилка bootstrap при відсутності joblib → RuntimeError."""
     missing = tmp_path / "missing_models.joblib"
 
     with patch.object(streamlit_app, "MODELS_BUNDLE_PATH", missing):
         streamlit_app.ensure_models_ready.clear()
         with patch(
-            "train_diabetes_model.train_all_models",
-            side_effect=OSError("disk full"),
+            "streamlit_app.bootstrap_models.ensure_models_ready",
+            side_effect=RuntimeError("disk full"),
         ):
             with pytest.raises(RuntimeError, match="першому запуску"):
                 streamlit_app.ensure_models_ready()

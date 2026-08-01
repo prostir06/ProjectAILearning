@@ -1,22 +1,26 @@
 """
-Веб-інтерфейс Flask для передбачення діабету.
-
-Показує передбачення від кількох алгоритмів ML,
-загальний підсумок та метрики похибки на тестовій вибірці.
+Веб-інтерфейс Flask та JSON API для передбачення діабету.
 """
 
-import logging
+from __future__ import annotations
 
-from flask import Flask, render_template, request
+import logging
+import os
+
+import bootstrap_models
+from explainability import get_explanation
+from flask import Flask, jsonify, render_template, request
 
 from config import (
-    BEST_MODEL_WEIGHTS,
+    DEFAULT_FORM,
     DEFAULT_THRESHOLD_PERCENT,
+    FLASK_SECRET_KEY,
+    MODELS_BUNDLE_PATH,
     PREDICTION_THRESHOLD,
+    SMOKING_OPTIONS_UK,
     THRESHOLD_MAX,
     THRESHOLD_MIN,
     THRESHOLD_STEP_PERCENT,
-    DEFAULT_FORM,
 )
 from exceptions import (
     DiabetesProjectError,
@@ -26,73 +30,98 @@ from exceptions import (
 )
 from model_registry import MODEL_LABELS_UK
 from predict_diabetes import (
+    get_bundle_optimal_threshold,
     get_feature_importance,
     get_training_metrics,
     predict_with_summary,
 )
+from scoring import get_selection_score
 from validators import parse_prediction_threshold, validate_person_data
 
-# Логер для несподіваних помилок сервера.
+try:
+    from flask_wtf.csrf import CSRFProtect
+except ImportError:  # pragma: no cover - optional dependency in tests
+    CSRFProtect = None
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+app.secret_key = FLASK_SECRET_KEY
+
+csrf = None
+if CSRFProtect is not None:
+    csrf = CSRFProtect(app)
+else:
+    logger.warning("flask-wtf is not installed; CSRF protection disabled.")
 
 
 def parse_form(form_data) -> dict:
-    """
-    Зчитує дані з Flask request.form у словник для валідації.
-
-    Відсутні поля заповнюються значеннями з DEFAULT_FORM
-    (наприклад, smoking_history = «No Info»).
-
-    Args:
-        form_data: ImmutableMultiDict з полями HTML-форми.
-
-    Returns:
-        Словник із сирими значеннями полів.
-    """
+    """Зчитує дані з request.form у словник для валідації."""
     parsed = DEFAULT_FORM.copy()
     try:
         for key in DEFAULT_FORM:
             if key in form_data:
                 parsed[key] = form_data.get(key, parsed[key])
+        parsed["smoking_history"] = form_data.get(
+            "smoking_history",
+            parsed["smoking_history"],
+        )
     except (TypeError, AttributeError) as exc:
         logger.warning("Некоректні дані форми: %s", exc)
         return DEFAULT_FORM.copy()
     return parsed
 
 
-def parse_threshold_from_form(form_data, default: float = PREDICTION_THRESHOLD) -> float:
-    """
-    Зчитує поріг ймовірності з форми (поле prediction_threshold у %).
-
-    Args:
-        form_data: ImmutableMultiDict з полями HTML-форми.
-        default: Поріг, якщо поле відсутнє.
-
-    Returns:
-        Поріг у діапазоні 0.0–1.0.
-    """
+def parse_threshold_from_form(
+    form_data,
+    default: float = PREDICTION_THRESHOLD,
+) -> float:
+    """Зчитує поріг ймовірності з HTML-форми у %."""
     if form_data is None or "prediction_threshold" not in form_data:
         return default
 
     try:
-        return parse_prediction_threshold(form_data.get("prediction_threshold"))
+        return parse_prediction_threshold(
+            form_data.get("prediction_threshold"),
+            default=default,
+        )
     except InvalidPatientDataError:
         return default
 
 
+def parse_threshold_from_payload(
+    value,
+    default: float = PREDICTION_THRESHOLD,
+) -> float:
+    """Приймає threshold як 0-1 або як відсотки."""
+    if value is None:
+        return default
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise InvalidPatientDataError(
+            "Поріг ймовірності має бути числом."
+        ) from exc
+
+    if 0.0 <= numeric <= 1.0:
+        threshold = numeric
+    else:
+        threshold = parse_prediction_threshold(numeric, default=default)
+
+    if not THRESHOLD_MIN <= threshold <= THRESHOLD_MAX:
+        raise InvalidPatientDataError(
+            f"Поріг має бути в діапазоні "
+            f"{int(THRESHOLD_MIN * 100)}–{int(THRESHOLD_MAX * 100)}% "
+            f"або {THRESHOLD_MIN:.1f}–{THRESHOLD_MAX:.1f}."
+        )
+    return round(threshold, 2)
+
+
 def get_error_message(error: Exception) -> str:
-    """
-    Перетворює виняток на зрозуміле повідомлення для користувача.
-
-    Args:
-        error: Перехоплений виняток.
-
-    Returns:
-        Текст помилки українською.
-    """
+    """Перетворює виняток на зрозуміле повідомлення для користувача."""
     if isinstance(error, InvalidPatientDataError):
         return str(error)
     if isinstance(error, ModelNotFoundError):
@@ -105,63 +134,15 @@ def get_error_message(error: Exception) -> str:
     return "Сталася непередбачена помилка. Спробуйте ще раз."
 
 
-def _get_selection_score(model_metrics: dict) -> float:
-    """
-    Повертає композитний бал рейтингу алгоритму.
-
-    Якщо selection_score уже збережено в метриках — використовує його.
-    Інакше обчислює за формулою з BEST_MODEL_WEIGHTS (ROC-AUC, Recall, F1).
-
-    Args:
-        model_metrics: Словник метрик однієї моделі.
-
-    Returns:
-        Бал рейтингу (вище — краще).
-    """
-    if not isinstance(model_metrics, dict):
-        return 0.0
-
-    stored = model_metrics.get("selection_score")
-    if stored is not None:
-        try:
-            return float(stored)
-        except (TypeError, ValueError):
-            return 0.0
-
-    try:
-        roc_auc = model_metrics.get("roc_auc")
-        recall = model_metrics.get("recall")
-        f1 = model_metrics.get("f1")
-        if roc_auc is None or recall is None or f1 is None:
-            return 0.0
-
-        return round(
-            BEST_MODEL_WEIGHTS["roc_auc"] * float(roc_auc)
-            + BEST_MODEL_WEIGHTS["recall"] * float(recall)
-            + BEST_MODEL_WEIGHTS["f1"] * float(f1),
-            4,
-        )
-    except (TypeError, ValueError):
-        return 0.0
-
-
 def format_metrics_for_display(metrics: dict) -> list[dict]:
-    """
-    Готує метрики для таблиці порівняння алгоритмів.
-
-    Сортування: за selection_score (рейтинг) від найвищого до найнижчого.
-
-    Args:
-        metrics: Словник метрик із JSON або пакета моделей.
-
-    Returns:
-        Відсортований список записів для шаблону з полем rank.
-    """
+    """Готує метрики для таблиці порівняння алгоритмів."""
     if not isinstance(metrics, dict):
         return []
 
     rows = []
     for model_key, model_metrics in metrics.items():
+        if model_key.startswith("_"):
+            continue
         if not isinstance(model_metrics, dict):
             continue
 
@@ -178,9 +159,10 @@ def format_metrics_for_display(metrics: dict) -> list[dict]:
                 "recall": model_metrics.get("recall"),
                 "f1": model_metrics.get("f1"),
                 "roc_auc": model_metrics.get("roc_auc"),
+                "pr_auc": model_metrics.get("pr_auc"),
                 "is_best": model_metrics.get("is_best", False),
                 "tuned": model_metrics.get("tuned", False),
-                "selection_score": _get_selection_score(model_metrics),
+                "selection_score": get_selection_score(model_metrics),
             })
         except (TypeError, AttributeError) as exc:
             logger.warning(
@@ -189,23 +171,14 @@ def format_metrics_for_display(metrics: dict) -> list[dict]:
                 exc,
             )
 
-    rows.sort(
-        key=lambda row: -row.get("selection_score", 0),
-    )
-
+    rows.sort(key=lambda row: -row.get("selection_score", 0))
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
-
     return rows
 
 
 def load_metrics_rows() -> list[dict]:
-    """
-    Безпечно завантажує метрики для відображення на головній сторінці.
-
-    Returns:
-        Список рядків таблиці або порожній список при помилці.
-    """
+    """Безпечно завантажує метрики для відображення."""
     try:
         return format_metrics_for_display(get_training_metrics())
     except Exception as exc:
@@ -213,31 +186,130 @@ def load_metrics_rows() -> list[dict]:
         return []
 
 
+def load_feature_importance() -> list[dict]:
+    """Безпечно завантажує важливість ознак."""
+    try:
+        return get_feature_importance()
+    except Exception as exc:
+        logger.warning("Не вдалося завантажити важливість ознак: %s", exc)
+        return []
+
+
+def get_default_threshold() -> float:
+    """Повертає optimal threshold з бандла або fallback."""
+    return get_bundle_optimal_threshold(default=PREDICTION_THRESHOLD)
+
+
+def build_index_context(
+    *,
+    form: dict | None = None,
+    results: list[dict] | None = None,
+    summary: dict | None = None,
+    error: str | None = None,
+    threshold_percent: int = DEFAULT_THRESHOLD_PERCENT,
+    metrics_rows: list[dict] | None = None,
+    feature_importance: list[dict] | None = None,
+) -> dict:
+    """Будує контекст рендерингу для головної сторінки."""
+    resolved_metrics = metrics_rows if metrics_rows is not None else load_metrics_rows()
+    return {
+        "form": form or DEFAULT_FORM.copy(),
+        "results": results,
+        "summary": summary,
+        "metrics_rows": resolved_metrics,
+        "feature_importance": (
+            feature_importance
+            if feature_importance is not None
+            else load_feature_importance()
+        ),
+        "error": error,
+        "threshold_percent": threshold_percent,
+        "threshold_min_percent": int(THRESHOLD_MIN * 100),
+        "threshold_max_percent": int(THRESHOLD_MAX * 100),
+        "threshold_step": THRESHOLD_STEP_PERCENT,
+        "smoking_options": SMOKING_OPTIONS_UK,
+        "show_pr_auc": any(
+            row.get("pr_auc") is not None for row in resolved_metrics
+        ),
+    }
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Простий health endpoint для Docker/ops."""
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/predict", methods=["POST"])
+def api_predict():
+    """JSON API для передбачення."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "JSON body має бути об'єктом."}), 400
+
+    threshold = get_default_threshold()
+    try:
+        threshold = parse_threshold_from_payload(
+            payload.get("threshold"),
+            default=threshold,
+        )
+        mode = str(payload.get("mode", "all")).strip().lower() or "all"
+        person = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"threshold", "mode"}
+        }
+        validated_person = validate_person_data(person)
+        prediction = predict_with_summary(
+            validated_person,
+            threshold=threshold,
+            mode=mode,
+        )
+        return jsonify(prediction)
+    except InvalidPatientDataError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except ModelNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except PredictionError as exc:
+        return jsonify({"error": get_error_message(exc)}), 400
+    except Exception as exc:
+        logger.exception("Несподівана помилка в /api/predict")
+        return jsonify({"error": get_error_message(exc)}), 500
+
+
+if csrf is not None:
+    csrf.exempt(api_predict)
+
+
+@app.route("/api/explain", methods=["GET"])
+def api_explain():
+    """Повертає важливість ознак для найкращої моделі."""
+    return jsonify(get_explanation())
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
-    """
-    Головна сторінка: форма, порівняння алгоритмів і результати.
-
-    Returns:
-        HTML-сторінка з формою та (за наявності) результатами передбачення.
-    """
+    """Головна сторінка з формою, метриками й результатами."""
     results = None
     summary = None
     error = None
     form = DEFAULT_FORM.copy()
-    threshold = PREDICTION_THRESHOLD
-    threshold_percent = DEFAULT_THRESHOLD_PERCENT
+    threshold = get_default_threshold()
+    threshold_percent = int(round(threshold * 100))
+
+    if request.method == "GET" and not MODELS_BUNDLE_PATH.exists():
+        try:
+            bootstrap_models.ensure_models_ready()
+        except RuntimeError as exc:
+            error = str(exc)
+
     metrics_rows = load_metrics_rows()
-    feature_importance = []
-    try:
-        feature_importance = get_feature_importance()
-    except Exception as exc:
-        logger.warning("Не вдалося завантажити важливість ознак: %s", exc)
+    feature_importance = load_feature_importance()
 
     if request.method == "POST":
         form = parse_form(request.form)
-        threshold = parse_threshold_from_form(request.form)
-        threshold_percent = int(threshold * 100)
+        threshold = parse_threshold_from_form(request.form, default=threshold)
+        threshold_percent = int(round(threshold * 100))
         try:
             person = validate_person_data(form)
             prediction = predict_with_summary(person, threshold=threshold)
@@ -251,47 +323,29 @@ def index():
 
     return render_template(
         "index.html",
-        form=form,
-        results=results,
-        summary=summary,
-        metrics_rows=metrics_rows,
-        feature_importance=feature_importance,
-        error=error,
-        threshold_percent=threshold_percent,
-        threshold_min_percent=int(THRESHOLD_MIN * 100),
-        threshold_max_percent=int(THRESHOLD_MAX * 100),
-        threshold_step=THRESHOLD_STEP_PERCENT,
+        **build_index_context(
+            form=form,
+            results=results,
+            summary=summary,
+            error=error,
+            threshold_percent=threshold_percent,
+            metrics_rows=metrics_rows,
+            feature_importance=feature_importance,
+        ),
     )
 
 
 @app.errorhandler(500)
 def handle_internal_error(error):
-    """
-    Глобальний обробник несподіваних помилок сервера.
-
-    Логує виняток і повертає сторінку з формою та повідомленням.
-    """
+    """Глобальний обробник несподіваних помилок сервера."""
     logger.exception("Внутрішня помилка сервера: %s", error)
     return render_template(
         "index.html",
-        form=DEFAULT_FORM.copy(),
-        results=None,
-        summary=None,
-        metrics_rows=[],
-        feature_importance=[],
-        error=get_error_message(error),
-        threshold_percent=DEFAULT_THRESHOLD_PERCENT,
-        threshold_min_percent=int(THRESHOLD_MIN * 100),
-        threshold_max_percent=int(THRESHOLD_MAX * 100),
-        threshold_step=THRESHOLD_STEP_PERCENT,
+        **build_index_context(error=get_error_message(error)),
     ), 500
 
 
 if __name__ == "__main__":
-    import os
-
-    # Для локальної розробки: FLASK_DEBUG=1. За замовчуванням debug вимкнено.
-    # HOST=0.0.0.0 потрібен у Docker, щоб порт був доступний ззовні контейнера.
     debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
     host = os.environ.get("HOST", "127.0.0.1")
     try:
@@ -299,4 +353,14 @@ if __name__ == "__main__":
     except ValueError:
         logger.warning("Некоректний PORT у середовищі, використано 5000")
         port = 5000
+
+    if not debug_mode:
+        try:
+            from waitress import serve
+        except ImportError:
+            logger.warning("waitress не встановлено; використано Flask dev server.")
+        else:
+            serve(app, host=host, port=port)
+            raise SystemExit(0)
+
     app.run(debug=debug_mode, host=host, port=port)

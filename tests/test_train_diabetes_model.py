@@ -2,6 +2,7 @@
 Unit-тести для train_diabetes_model.py.
 """
 
+import joblib
 from unittest.mock import patch
 
 import pandas as pd
@@ -73,27 +74,35 @@ def test_load_data_empty_after_dropna(tmp_path):
 def test_train_and_evaluate_with_tiny_data(tiny_dataframe):
     """Навчання на малому датасеті завершується успішно."""
     with patch("train_diabetes_model.load_data", return_value=tiny_dataframe):
-        models, metrics, best_key, _ = train_diabetes_model.train_all_models(
+        models, metrics, best_key, _, optimal_threshold = (
+            train_diabetes_model.train_all_models(
             enable_tuning=False,
+        )
         )
 
     assert "random_forest" in models
     assert "random_forest" in metrics
     assert "roc_auc" in metrics["random_forest"]
     assert best_key in models
+    assert 0.0 <= optimal_threshold <= 1.0
 
 
 def test_train_all_models_returns_metrics(tiny_dataframe):
     """Кожен алгоритм має метрики accuracy та roc_auc."""
     with patch("train_diabetes_model.load_data", return_value=tiny_dataframe):
-        _, metrics, _, _ = train_diabetes_model.train_all_models(
+        _, metrics, _, _, _ = train_diabetes_model.train_all_models(
             enable_tuning=False,
         )
 
     for model_key, model_metrics in metrics.items():
+        if model_key == "_meta":
+            continue
         assert 0.0 <= model_metrics["accuracy"] <= 1.0
         assert 0.0 <= model_metrics["roc_auc"] <= 1.0
+        assert 0.0 <= model_metrics["pr_auc"] <= 1.0
         assert "selection_score" in model_metrics
+
+    assert "optimal_threshold" in metrics["_meta"]
 
 
 def test_compute_selection_score_weights():
@@ -167,7 +176,52 @@ def test_evaluate_model_returns_metrics(trained_pipeline, tiny_dataframe):
 
     assert "accuracy" in metrics
     assert "roc_auc" in metrics
+    assert "pr_auc" in metrics
     assert 0.0 <= metrics["accuracy"] <= 1.0
+
+
+def test_save_models_bundle_writes_metadata_and_best_only_file(
+    trained_pipeline,
+    tmp_path,
+):
+    """save_models_bundle зберігає metadata та окремий best-only bundle."""
+    from train_diabetes_model import save_models_bundle
+
+    bundle_path = tmp_path / "models.joblib"
+    best_bundle_path = tmp_path / "best.joblib"
+    metrics = {
+        "random_forest": {
+            "accuracy": 0.9,
+            "roc_auc": 0.88,
+            "pr_auc": 0.84,
+            "recall": 0.8,
+            "f1": 0.79,
+            "selection_score": 0.85,
+            "is_best": True,
+        }
+    }
+
+    with patch(
+        "train_diabetes_model.BEST_MODELS_BUNDLE_PATH",
+        best_bundle_path,
+    ):
+        save_models_bundle(
+            models={"random_forest": trained_pipeline},
+            metrics=metrics,
+            best_model_key="random_forest",
+            feature_importance=[],
+            optimal_threshold=0.42,
+            bundle_path=bundle_path,
+        )
+
+    bundle = joblib.load(bundle_path)
+    best_bundle = joblib.load(best_bundle_path)
+
+    assert bundle["metadata"]["optimal_threshold"] == 0.42
+    assert "trained_at" in bundle["metadata"]
+    assert "data_checksum" in bundle["metadata"]
+    assert bundle["best_model"] == "random_forest"
+    assert set(best_bundle["models"].keys()) == {"random_forest"}
 
 
 def test_extract_feature_importance(trained_pipeline):

@@ -6,6 +6,9 @@
 щоб діапазони валідації та шляхи артефактів не розходились.
 """
 
+from __future__ import annotations
+
+import os
 from pathlib import Path
 
 # Коренева директорія проєкту (де лежать скрипти та дані).
@@ -17,6 +20,9 @@ DATA_PATH = BASE_DIR / "diabetes_prediction_dataset.csv"
 
 # Шлях до збереженого пакета всіх моделей (joblib).
 MODELS_BUNDLE_PATH = BASE_DIR / "diabetes_models.joblib"
+
+# Легкий артефакт лише з найкращою моделлю (швидший deploy / cold start).
+BEST_MODELS_BUNDLE_PATH = BASE_DIR / "diabetes_models_best.joblib"
 
 # Шлях до JSON із метриками похибки кожного алгоритму.
 METRICS_PATH = BASE_DIR / "model_metrics.json"
@@ -81,6 +87,14 @@ TUNING_N_ITER = 12
 TUNING_CV_FOLDS = 3
 TUNING_MAX_SAMPLES = 50000
 
+# Частки validation / test для 3-way split (решта — train).
+VAL_SIZE = 0.15
+TEST_SIZE = 0.15
+
+# Швидке навчання при cold-start (0 = увесь датасет).
+# Приклад: QUICK_TRAIN_MAX_ROWS=20000
+QUICK_TRAIN_MAX_ROWS = int(os.environ.get("QUICK_TRAIN_MAX_ROWS", "0"))
+
 # Ваги для вибору найкращої моделі (сума = 1.0).
 BEST_MODEL_WEIGHTS = {
     "roc_auc": 0.5,
@@ -120,3 +134,6 @@ DEFAULT_FORM = {
     "HbA1c_level": "5.7",
     "blood_glucose_level": "120",
 }
+
+# Flask CSRF / session (перевизначається через FLASK_SECRET_KEY).
+FLASK_SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-only-change-me")

@@ -1,9 +1,11 @@
 """
 Реєстр алгоритмів машинного навчання для передбачення діабету.
 
-Кожен алгоритм обгортається в Pipeline із препроцесингом,
-SMOTE (балансування класів) та класифікатором.
+Кожен алгоритм обгортається в pipeline зі спільним препроцесингом.
+SMOTE застосовується лише там, де це явно потрібно.
 """
+
+from __future__ import annotations
 
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -22,13 +24,11 @@ from xgboost import XGBClassifier
 
 from config import FEATURES
 
-# Категоріальні та числові ознаки для препроцесора.
 CATEGORICAL_FEATURES = ["gender", "smoking_history"]
 NUMERIC_FEATURES = [
     feature for feature in FEATURES if feature not in CATEGORICAL_FEATURES
 ]
 
-# Ключі моделей (внутрішні) та українські назви для інтерфейсу.
 MODEL_LABELS_UK = {
     "random_forest": "Випадковий ліс (Random Forest)",
     "logistic_regression": "Логістична регресія",
@@ -38,10 +38,12 @@ MODEL_LABELS_UK = {
     "xgboost": "XGBoost",
 }
 
-# Модель за замовчуванням (до вибору найкращої під час навчання).
 DEFAULT_MODEL_KEY = "random_forest"
 
-# Параметри тюнінгу для топ-моделей.
+MODELS_USE_SMOTE = {
+    "logistic_regression": True,
+}
+
 TUNING_PARAM_GRIDS = {
     "xgboost": {
         "classifier__max_depth": [4, 6, 8, 10],
@@ -84,9 +86,6 @@ def create_smote(minority_count: int) -> SMOTE:
     """
     Створює SMOTE з безпечним k_neighbors для малих вибірок.
 
-    Якщо меншинний клас містить лише 1 запис, k_neighbors=1
-    (мінімально допустиме значення для imblearn).
-
     Args:
         minority_count: Кількість записів у меншинному класі на train.
 
@@ -117,7 +116,8 @@ def get_classifiers() -> dict[str, ClassifierMixin]:
             n_estimators=100,
             max_depth=10,
             random_state=42,
-            n_jobs=-1,
+            n_jobs=1,
+            class_weight="balanced",
         ),
         "logistic_regression": LogisticRegression(
             max_iter=1000,
@@ -126,10 +126,12 @@ def get_classifiers() -> dict[str, ClassifierMixin]:
         "hist_gradient_boosting": HistGradientBoostingClassifier(
             max_depth=10,
             random_state=42,
+            class_weight="balanced",
         ),
         "decision_tree": DecisionTreeClassifier(
             max_depth=10,
             random_state=42,
+            class_weight="balanced",
         ),
         "adaboost": AdaBoostClassifier(
             n_estimators=50,
@@ -143,7 +145,8 @@ def get_classifiers() -> dict[str, ClassifierMixin]:
             colsample_bytree=0.85,
             random_state=42,
             eval_metric="logloss",
-            n_jobs=-1,
+            n_jobs=1,
+            scale_pos_weight=1,
         ),
     }
 
@@ -175,17 +178,34 @@ def build_pipeline(
     return Pipeline(steps=steps)
 
 
-def get_model_pipelines(smote: SMOTE | None = None) -> dict[str, Pipeline | ImbPipeline]:
+def get_model_pipelines(
+    smote: SMOTE | None = None,
+    model_keys: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Pipeline | ImbPipeline]:
     """
-    Повертає pipeline з SMOTE для всіх зареєстрованих алгоритмів.
+    Повертає pipeline для вибраних зареєстрованих алгоритмів.
 
     Args:
         smote: Налаштований SMOTE для train-вибірки.
+        model_keys: Необов'язковий список ключів моделей.
 
     Returns:
         dict: ключ моделі → Pipeline.
     """
+    classifiers = get_classifiers()
+
+    if model_keys is not None:
+        classifiers = {
+            key: classifier
+            for key, classifier in classifiers.items()
+            if key in set(model_keys)
+        }
+
     return {
-        key: build_pipeline(classifier, use_smote=True, smote=smote)
-        for key, classifier in get_classifiers().items()
+        key: build_pipeline(
+            classifier,
+            use_smote=MODELS_USE_SMOTE.get(key, False),
+            smote=smote,
+        )
+        for key, classifier in classifiers.items()
     }

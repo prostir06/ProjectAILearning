@@ -30,6 +30,10 @@
           {% endif %}
 
           <form method="post" class="form-grid" id="prediction-form" novalidate>
+            {% if csrf_token is defined %}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% endif %}
+
             <label for="gender">
               Стать
               <select id="gender" name="gender" required aria-required="true">
@@ -69,7 +73,14 @@
               </select>
             </label>
 
-            <input type="hidden" name="smoking_history" value="No Info">
+            <label for="smoking_history">
+              Історія куріння
+              <select id="smoking_history" name="smoking_history" required aria-required="true">
+                {% for value, label in smoking_options.items() %}
+                <option value="{{ value }}" {% if form.smoking_history == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </label>
 
             <label for="bmi">
               ІМТ (індекс маси тіла)
@@ -179,6 +190,7 @@
                   <th scope="col">Алгоритм</th>
                   <th scope="col">Рейтинг</th>
                   <th scope="col">ROC-AUC</th>
+                  {% if show_pr_auc %}<th scope="col">PR-AUC</th>{% endif %}
                   <th scope="col">Recall</th>
                   <th scope="col">F1</th>
                   <th scope="col">Точність</th>
@@ -200,6 +212,13 @@
                     {{ "%.1f"|format(row.roc_auc * 100) }}%
                     {% else %}н/д{% endif %}
                   </td>
+                  {% if show_pr_auc %}
+                  <td>
+                    {% if row.pr_auc is not none %}
+                    {{ "%.1f"|format(row.pr_auc * 100) }}%
+                    {% else %}н/д{% endif %}
+                  </td>
+                  {% endif %}
                   <td>{{ "%.1f"|format(row.recall * 100) }}%</td>
                   <td>{{ "%.1f"|format(row.f1 * 100) }}%</td>
                   <td>{{ "%.1f"|format(row.accuracy * 100) }}%</td>

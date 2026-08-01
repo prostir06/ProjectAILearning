@@ -6,7 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from app import app, format_metrics_for_display, get_error_message, load_metrics_rows, parse_form, parse_threshold_from_form
+from app import (
+    app,
+    format_metrics_for_display,
+    get_error_message,
+    load_metrics_rows,
+    parse_form,
+    parse_threshold_from_form,
+)
 from exceptions import InvalidPatientDataError, ModelNotFoundError, PredictionError
 
 
@@ -14,8 +21,10 @@ from exceptions import InvalidPatientDataError, ModelNotFoundError, PredictionEr
 def client():
     """Flask test client."""
     app.config["TESTING"] = True
-    with app.test_client() as test_client:
-        yield test_client
+    app.config["WTF_CSRF_ENABLED"] = False
+    with patch("app.bootstrap_models.ensure_models_ready", return_value=True):
+        with app.test_client() as test_client:
+            yield test_client
 
 
 def test_index_get_returns_form(client):
@@ -127,6 +136,7 @@ def test_parse_form_returns_all_keys():
 def test_format_metrics_for_display_sorts_by_selection_score():
     """Метрики сортуються за selection_score (рейтинг) від найвищого."""
     metrics = {
+        "_meta": {"optimal_threshold": 0.42},
         "a": {
             "label_uk": "A",
             "accuracy": 0.9,
@@ -135,6 +145,7 @@ def test_format_metrics_for_display_sorts_by_selection_score():
             "recall": 0.7,
             "f1": 0.75,
             "roc_auc": 0.95,
+            "pr_auc": 0.91,
             "selection_score": 0.82,
             "is_best": False,
         },
@@ -167,6 +178,7 @@ def test_format_metrics_for_display_sorts_by_selection_score():
     assert [row["model_key"] for row in rows] == ["b", "c", "a"]
     assert rows[0]["rank"] == 1
     assert rows[0]["is_best"] is True
+    assert rows[-1]["pr_auc"] == 0.91
 
 
 def test_format_metrics_for_display_invalid_input():
@@ -263,12 +275,12 @@ def test_get_error_message_prediction_and_generic():
 
 
 def test_get_selection_score_invalid_metrics():
-    """_get_selection_score повертає 0.0 для некоректних метрик."""
-    from app import _get_selection_score
+    """get_selection_score повертає 0.0 для некоректних метрик."""
+    from scoring import get_selection_score
 
-    assert _get_selection_score(None) == 0.0
-    assert _get_selection_score({"selection_score": "bad"}) == 0.0
-    assert _get_selection_score({"roc_auc": "x", "recall": 1, "f1": 1}) == 0.0
+    assert get_selection_score(None) == 0.0
+    assert get_selection_score({"selection_score": "bad"}) == 0.0
+    assert get_selection_score({"roc_auc": "x", "recall": 1, "f1": 1}) == 0.0
 
 
 def test_index_post_custom_threshold(client, sample_person):

@@ -11,7 +11,6 @@ import joblib
 import pandas as pd
 
 from config import (
-    BEST_MODEL_WEIGHTS,
     FEATURE_IMPORTANCE_PATH,
     FEATURES,
     METRICS_PATH,
@@ -20,6 +19,7 @@ from config import (
 )
 from exceptions import ModelNotFoundError, PredictionError
 from model_registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
+from scoring import compute_selection_score, get_selection_score
 from validators import validate_person_data
 
 # Кеш завантаженого пакета моделей.
@@ -99,43 +99,6 @@ def _get_pipeline(model_key: str | None = None):
         )
 
     return models[resolved_key]
-
-
-def _get_selection_score(model_metrics: dict) -> float:
-    """
-    Композитний бал рейтингу (ROC-AUC + Recall + F1).
-
-    Args:
-        model_metrics: Метрики одного алгоритму з JSON / пакета.
-
-    Returns:
-        Бал рейтингу або 0.0, якщо дані неповні / некоректні.
-    """
-    if not isinstance(model_metrics, dict):
-        return 0.0
-
-    stored = model_metrics.get("selection_score")
-    if stored is not None:
-        try:
-            return float(stored)
-        except (TypeError, ValueError):
-            return 0.0
-
-    try:
-        roc_auc = model_metrics.get("roc_auc")
-        recall = model_metrics.get("recall")
-        f1 = model_metrics.get("f1")
-        if roc_auc is None or recall is None or f1 is None:
-            return 0.0
-
-        return round(
-            BEST_MODEL_WEIGHTS["roc_auc"] * float(roc_auc)
-            + BEST_MODEL_WEIGHTS["recall"] * float(recall)
-            + BEST_MODEL_WEIGHTS["f1"] * float(f1),
-            4,
-        )
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _run_prediction(pipeline, feature_frame: pd.DataFrame) -> dict:
@@ -219,11 +182,14 @@ def get_feature_importance() -> list[dict]:
 
 def predict(person: dict, model_key: str | None = None) -> dict:
     """
-    Робить передбачення одним алгоритмом (за замовчуванням — Random Forest).
+    Робить передбачення одним алгоритмом.
+
+    За замовчуванням використовує найкращу модель з бандла
+    (``best_model`` / ``default_model``), а не фіксований Random Forest.
 
     Args:
         person: Дані пацієнта.
-        model_key: Ключ алгоритму.
+        model_key: Ключ алгоритму (опційно).
 
     Returns:
         Словник diabetes, label, probability.
@@ -273,7 +239,7 @@ def predict_all(person: dict) -> list[dict]:
             "accuracy": model_metrics.get("accuracy"),
             "roc_auc": model_metrics.get("roc_auc"),
             "is_best": model_metrics.get("is_best", False),
-            "selection_score": _get_selection_score(model_metrics),
+            "selection_score": get_selection_score(model_metrics),
         })
 
     results.sort(key=lambda item: -item.get("selection_score", 0))
@@ -287,18 +253,18 @@ def predict_all(person: dict) -> list[dict]:
 def build_prediction_summary(
     results: list[dict],
     threshold: float = PREDICTION_THRESHOLD,
+    *,
+    weighted: bool = True,
 ) -> dict:
     """
-    Формує загальний підсумок за всіма алгоритмами.
+    Формує загальний підсумок за алгоритмами.
 
-    Підсумок базується на:
-    - середній ймовірності діабету;
-    - кількості голосів «Так» / «Ні»;
-    - порозі PREDICTION_THRESHOLD для фінального класу.
+    За замовчуванням середня ймовірність зважена за selection_score.
 
     Args:
         results: Список передбачень окремих моделей.
         threshold: Поріг ймовірності для відповіді «Так».
+        weighted: Чи зважувати ймовірності за selection_score.
 
     Returns:
         Словник із загальним результатом.
@@ -314,9 +280,22 @@ def build_prediction_summary(
         1 for item in results if item["probability"] >= threshold
     )
     votes_no = total_models - votes_yes
-    average_probability = sum(
-        item["probability"] for item in results
-    ) / total_models
+
+    if weighted and total_models > 1:
+        weights = [
+            max(float(item.get("selection_score") or 0.0), 1e-6)
+            for item in results
+        ]
+        weight_sum = sum(weights)
+        average_probability = sum(
+            item["probability"] * weight
+            for item, weight in zip(results, weights, strict=True)
+        ) / weight_sum
+    else:
+        average_probability = sum(
+            item["probability"] for item in results
+        ) / total_models
+
     diabetes = int(average_probability >= threshold)
 
     return {
@@ -331,6 +310,7 @@ def build_prediction_summary(
         "probability": round(average_probability, 3),
         "diabetes": diabetes,
         "label": "Так" if diabetes else "Ні",
+        "weighted": weighted and total_models > 1,
     }
 
 
@@ -355,16 +335,48 @@ def apply_threshold_to_results(
     return results
 
 
+def get_bundle_optimal_threshold(
+    default: float = PREDICTION_THRESHOLD,
+) -> float:
+    """Повертає optimal_threshold з бандла / метаданих, якщо є."""
+    try:
+        bundle = _get_bundle()
+    except (ModelNotFoundError, PredictionError):
+        return default
+
+    metadata = bundle.get("metadata") or {}
+    stored = metadata.get("optimal_threshold")
+    if stored is None:
+        metrics = bundle.get("metrics") or {}
+        meta = metrics.get("_meta") or {}
+        stored = meta.get("optimal_threshold")
+
+    if stored is None:
+        return default
+
+    try:
+        value = float(stored)
+    except (TypeError, ValueError):
+        return default
+
+    if not 0.0 < value < 1.0:
+        return default
+    return value
+
+
 def predict_with_summary(
     person: dict,
     threshold: float = PREDICTION_THRESHOLD,
+    *,
+    mode: str = "all",
 ) -> dict:
     """
-    Робить передбачення всіма моделями та повертає загальний підсумок.
+    Робить передбачення та повертає загальний підсумок.
 
     Args:
         person: Дані пацієнта.
         threshold: Поріг ймовірності для класифікації «Так»/«Ні».
+        mode: ``all`` — усі моделі; ``best`` — лише найкраща (швидше).
 
     Returns:
         Словник із ключами models (список) та summary (загальний результат).
@@ -374,10 +386,46 @@ def predict_with_summary(
         ModelNotFoundError: Якщо файл моделей відсутній.
         PredictionError: Якщо передбачення або підсумок не вдались.
     """
+    resolved_mode = (mode or "all").strip().lower()
+    if resolved_mode not in {"all", "best"}:
+        raise PredictionError(
+            f"Невідомий mode={mode!r}. Допустимо: all, best."
+        )
+
     try:
-        model_results = predict_all(person)
+        if resolved_mode == "best":
+            validated = validate_person_data(person)
+            bundle = _get_bundle()
+            best_key = bundle.get("best_model") or bundle.get(
+                "default_model", DEFAULT_MODEL_KEY
+            )
+            pipeline = _get_pipeline(best_key)
+            feature_frame = pd.DataFrame([validated], columns=FEATURES)
+            prediction = _run_prediction(pipeline, feature_frame)
+            metrics = get_training_metrics().get(best_key, {})
+            labels = bundle.get("model_labels", MODEL_LABELS_UK)
+            model_results = [{
+                "model_key": best_key,
+                "model_name": labels.get(best_key, best_key),
+                "diabetes": prediction["diabetes"],
+                "label": prediction["label"],
+                "probability": prediction["probability"],
+                "error_rate": metrics.get("error_rate"),
+                "accuracy": metrics.get("accuracy"),
+                "roc_auc": metrics.get("roc_auc"),
+                "is_best": True,
+                "selection_score": get_selection_score(metrics),
+                "rank": 1,
+            }]
+        else:
+            model_results = predict_all(person)
+
         apply_threshold_to_results(model_results, threshold)
-        summary = build_prediction_summary(model_results, threshold=threshold)
+        summary = build_prediction_summary(
+            model_results,
+            threshold=threshold,
+            weighted=resolved_mode == "all",
+        )
     except (ModelNotFoundError, PredictionError):
         raise
     except Exception as exc:
@@ -388,6 +436,7 @@ def predict_with_summary(
     return {
         "models": model_results,
         "summary": summary,
+        "mode": resolved_mode,
     }
 
 

@@ -54,6 +54,18 @@ def test_get_model_pipelines_matches_labels():
     assert set(pipelines.keys()) == set(MODEL_LABELS_UK.keys())
 
 
+def test_get_model_pipelines_uses_smote_only_for_logistic_regression():
+    """SMOTE додається лише для logistic_regression."""
+    pipelines = get_model_pipelines()
+
+    assert "smote" in pipelines["logistic_regression"].named_steps
+    assert "smote" not in pipelines["random_forest"].named_steps
+    assert "smote" not in pipelines["decision_tree"].named_steps
+    assert "smote" not in pipelines["hist_gradient_boosting"].named_steps
+    assert "smote" not in pipelines["adaboost"].named_steps
+    assert "smote" not in pipelines["xgboost"].named_steps
+
+
 def test_create_smote_adapts_k_neighbors():
     """SMOTE зменшує k_neighbors для малих вибірок."""
     smote = create_smote(minority_count=3)
