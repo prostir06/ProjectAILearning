@@ -99,14 +99,14 @@ python -m pytest tests/ -v
 
 ```bash
 docker compose up --build
-# → http://localhost:5000
+# → http://localhost:5001
 ```
 
 Або:
 
 ```bash
 docker build -t diabetes-prediction .
-docker run --rm -p 5000:5000 -e FLASK_SECRET_KEY=change-me diabetes-prediction
+docker run --rm -p 5001:5000 -e FLASK_SECRET_KEY=change-me diabetes-prediction
 ```
 
 Публічний репозиторій: https://github.com/prostir06/ProjectAILearning
