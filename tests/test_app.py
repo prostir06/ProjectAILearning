@@ -8,7 +8,9 @@ import pytest
 
 from app import (
     app,
+    build_index_context,
     format_metrics_for_display,
+    get_default_threshold,
     get_error_message,
     load_metrics_rows,
     parse_form,
@@ -308,3 +310,58 @@ def test_index_post_custom_threshold(client, sample_person):
     assert mock_predict.call_args.kwargs["threshold"] == 0.3
     assert response.status_code == 200
     assert "30%" in response.data.decode("utf-8")
+
+
+def test_get_default_threshold_uses_bundle(monkeypatch):
+    """get_default_threshold бере optimal threshold з бандла."""
+    monkeypatch.setattr(
+        "app.get_bundle_optimal_threshold",
+        lambda default=0.5: 0.42,
+    )
+    assert abs(get_default_threshold() - 0.42) < 1e-9
+
+
+def test_get_default_threshold_fallback_on_error(monkeypatch):
+    """get_default_threshold повертає PREDICTION_THRESHOLD при збої."""
+    def _raise(**_kwargs):
+        raise RuntimeError("bundle missing")
+
+    monkeypatch.setattr("app.get_bundle_optimal_threshold", _raise)
+    assert get_default_threshold() == 0.5
+
+
+def test_build_index_context_contains_required_keys():
+    """build_index_context завжди містить ключі для шаблону."""
+    context = build_index_context(
+        form={"age": "40"},
+        results=None,
+        summary=None,
+        error=None,
+        metrics_rows=[],
+        feature_importance=[],
+        threshold_percent=50,
+    )
+    assert context["form"]["age"] == "40"
+    assert context["results"] is None
+    assert context["threshold_percent"] == 50
+    assert "metrics_rows" in context
+    assert "feature_importance" in context
+    assert "smoking_options" in context
+
+
+def test_health_models_ready_false_when_bundle_missing(client, monkeypatch):
+    """/health повертає models_ready=false, якщо файл бандла відсутній."""
+    from pathlib import Path
+
+    monkeypatch.setattr("app.MODELS_BUNDLE_PATH", Path("missing_models.joblib"))
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.get_json()["models_ready"] is False
+
+
+def test_get_selection_score_uses_stored_value():
+    """get_selection_score віддає збережений selection_score."""
+    from scoring import get_selection_score
+
+    assert get_selection_score({"selection_score": 0.77}) == 0.77

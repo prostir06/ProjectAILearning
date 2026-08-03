@@ -1,15 +1,18 @@
 /**
  * Клієнтська валідація форми передбачення діабету.
- * Дублює серверні діапазони з config.VALID_RANGES для швидкого зворотного зв'язку.
- * Стиль коду: StandardJS (const/let, без крапок з комою, IIFE).
  *
- * Помилки DOM обробляються try/catch у setFieldError / updateThresholdDisplay,
- * щоб скрипт не зупиняв сторінку в обмежених середовищах.
+ * StandardJS:
+ * - 'use strict'
+ * - const / let (без var)
+ * - без крапок з комою
+ * - IIFE, щоб не засмічувати global scope
+ *
+ * Діапазони синхронізовані з config.VALID_RANGES (сервер — джерело правди).
  */
 'use strict'
 
 ;(function () {
-  /** Правила валідації числових полів (синхронізовано з config.VALID_RANGES). */
+  // Правила для number-полів: min / max / людський підпис помилки.
   const FIELD_RULES = {
     age: { min: 1, max: 120, label: 'Вік' },
     bmi: { min: 10, max: 80, label: 'ІМТ' },
@@ -18,13 +21,14 @@
   }
 
   /**
-   * Перевіряє одне числове поле форми.
+   * Валідує одне числове поле.
    *
-   * @param {HTMLInputElement} input - Поле вводу.
-   * @param {{min: number, max: number, label: string}} rule - Правило валідації.
-   * @returns {string|null} Текст помилки або null, якщо поле валідне.
+   * @param {HTMLInputElement} input Поле форми.
+   * @param {{min: number, max: number, label: string}} rule Правило.
+   * @returns {string|null} Текст помилки або null.
    */
   function validateNumberField (input, rule) {
+    // Захист від виклику без DOM-елемента / правила.
     if (!input || !rule) {
       return null
     }
@@ -32,10 +36,12 @@
     const raw = String(input.value).trim()
     const value = Number(raw)
 
+    // Порожнє або нечислове значення.
     if (raw === '' || Number.isNaN(value)) {
       return rule.label + ' має бути числом.'
     }
 
+    // Поза дозволеним діапазоном.
     if (value < rule.min || value > rule.max) {
       return rule.label + ' має бути в діапазоні ' + rule.min + '–' + rule.max + '.'
     }
@@ -44,10 +50,10 @@
   }
 
   /**
-   * Показує або прибирає повідомлення про помилку біля поля.
+   * Показує або прибирає aria-повідомлення про помилку біля поля.
    *
-   * @param {HTMLInputElement} input - Поле вводу.
-   * @param {string|null} message - Текст помилки.
+   * @param {HTMLInputElement} input Поле форми.
+   * @param {string|null} message Текст помилки.
    */
   function setFieldError (input, message) {
     if (!input || !input.id) {
@@ -59,6 +65,7 @@
       let existing = document.getElementById(errorId)
 
       if (message) {
+        // Позначаємо поле невалідним для скрінрідерів.
         input.setAttribute('aria-invalid', 'true')
         if (!existing) {
           existing = document.createElement('span')
@@ -71,21 +78,22 @@
         return
       }
 
+      // Очищення попередньої помилки.
       input.removeAttribute('aria-invalid')
       if (existing) {
         existing.remove()
       }
     } catch (error) {
-      // DOM може бути недоступний у тестах / обмежених середовищах.
+      // У тестах / обмежених середовищах DOM може бути недоступний.
       console.warn('Не вдалося оновити помилку поля:', error)
     }
   }
 
   /**
-   * Валідує всю форму перед відправкою на сервер.
+   * Валідує всі числові поля форми перед submit.
    *
-   * @param {HTMLFormElement} form - Форма передбачення.
-   * @returns {boolean} true, якщо всі поля коректні.
+   * @param {HTMLFormElement} form Форма передбачення.
+   * @returns {boolean} true, якщо все валідно.
    */
   function validateForm (form) {
     if (!form || !form.elements) {
@@ -111,10 +119,10 @@
   }
 
   /**
-   * Оновлює текстовий індикатор слайдера порогу й ARIA-атрибути.
+   * Синхронізує слайдер порогу з текстовим виводом і ARIA.
    *
-   * @param {HTMLInputElement} slider - Елемент input[type=range].
-   * @param {HTMLElement} display - Елемент для відображення відсотків.
+   * @param {HTMLInputElement} slider input[type=range].
+   * @param {HTMLElement} display Елемент <output> / span.
    */
   function updateThresholdDisplay (slider, display) {
     if (!(slider instanceof HTMLInputElement) || !display) {
@@ -131,18 +139,21 @@
     }
   }
 
+  // Ініціалізація після побудови DOM (скрипт підключено з defer).
   document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('prediction-form')
     if (!form) {
       return
     }
 
+    // Блокуємо submit, якщо клієнтська валідація не пройшла.
     form.addEventListener('submit', function (event) {
       if (!validateForm(form)) {
         event.preventDefault()
       }
     })
 
+    // Жива перевірка під час введення.
     Object.keys(FIELD_RULES).forEach(function (fieldName) {
       const input = form.elements.namedItem(fieldName)
       if (input instanceof HTMLInputElement) {
@@ -155,6 +166,7 @@
       }
     })
 
+    // Слайдер порогу класифікації «Так» / «Ні».
     const thresholdSlider = document.getElementById('prediction_threshold')
     const thresholdDisplay = document.getElementById('threshold-display')
     if (thresholdSlider instanceof HTMLInputElement && thresholdDisplay) {

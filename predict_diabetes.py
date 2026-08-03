@@ -19,7 +19,7 @@ from config import (
 )
 from exceptions import ModelNotFoundError, PredictionError
 from model_registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
-from scoring import compute_selection_score, get_selection_score
+from scoring import get_selection_score
 from validators import validate_person_data
 
 # Кеш завантаженого пакета моделей.
@@ -116,13 +116,16 @@ def _run_prediction(pipeline, feature_frame: pd.DataFrame) -> dict:
         PredictionError: Якщо модель повернула неочікуваний результат.
     """
     try:
+        # Клас 1 = наявність діабету (позитивний клас у датасеті).
         prediction = int(pipeline.predict(feature_frame)[0])
         probability = float(pipeline.predict_proba(feature_frame)[0][1])
-    except (IndexError, KeyError, AttributeError) as exc:
+    except (IndexError, KeyError, AttributeError, TypeError, ValueError) as exc:
+        # Порожній / зламаний вихід моделі.
         raise PredictionError(
             "Модель повернула неочікуваний результат."
         ) from exc
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
+        # Будь-який інший збій sklearn / XGBoost під час infer.
         raise PredictionError(
             f"Помилка під час передбачення: {exc}"
         ) from exc

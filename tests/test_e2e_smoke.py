@@ -17,4 +17,6 @@ def test_health_smoke():
             response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
+    payload = response.get_json()
+    assert payload["status"] == "ok"
+    assert "models_ready" in payload

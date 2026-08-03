@@ -132,3 +132,12 @@ def test_parse_prediction_threshold_out_of_range():
 
     with pytest.raises(InvalidPatientDataError, match="Поріг"):
         parse_prediction_threshold(5)
+
+
+def test_parse_prediction_threshold_empty_uses_default():
+    """Порожній / None поріг повертає default."""
+    from validators import parse_prediction_threshold
+
+    assert parse_prediction_threshold(None, default=0.4) == 0.4
+    assert parse_prediction_threshold("", default=0.35) == 0.35
+    assert parse_prediction_threshold("  ", default=0.5) == 0.5

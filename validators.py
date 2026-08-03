@@ -1,6 +1,12 @@
 """
 Валідація та нормалізація даних пацієнта перед передачею в модель.
+
+Усі публічні функції кидають ``InvalidPatientDataError`` з українським
+текстом — Flask / API ловлять його і показують користувачу.
+Діапазони синхронізовані з ``config.VALID_RANGES`` і клієнтським ``main.js``.
 """
+
+from __future__ import annotations
 
 from config import (
     FEATURES,
@@ -25,6 +31,7 @@ def _parse_binary_field(name: str, value) -> int:
     Raises:
         InvalidPatientDataError: Якщо значення не 0 і не 1.
     """
+    # int() кидає TypeError (None) або ValueError («abc»).
     try:
         parsed = int(value)
     except (TypeError, ValueError) as exc:
@@ -32,6 +39,7 @@ def _parse_binary_field(name: str, value) -> int:
             f"Поле «{name}» має бути 0 або 1."
         ) from exc
 
+    # Відсікаємо 2, -1 тощо після успішного int().
     if parsed not in (0, 1):
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути 0 або 1."
@@ -63,6 +71,7 @@ def _parse_float_field(name: str, value, min_val: float, max_val: float) -> floa
             f"Поле «{name}» має бути числом."
         ) from exc
 
+    # Інклюзивні межі (як у HTML min/max і JS FIELD_RULES).
     if not min_val <= parsed <= max_val:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути в діапазоні "
@@ -75,6 +84,8 @@ def _parse_float_field(name: str, value, min_val: float, max_val: float) -> floa
 def _parse_int_field(name: str, value, min_val: int, max_val: int) -> int:
     """
     Перетворює числове поле у int і перевіряє діапазон.
+
+    Допускає рядки на кшталт ``"120.0"`` через ``int(float(...))``.
 
     Args:
         name: Назва поля.
@@ -89,6 +100,7 @@ def _parse_int_field(name: str, value, min_val: int, max_val: int) -> int:
         InvalidPatientDataError: Якщо значення не число або поза діапазоном.
     """
     try:
+        # float спочатку — щоб «95.0» з форми не падало на int().
         parsed = int(float(value))
     except (TypeError, ValueError) as exc:
         raise InvalidPatientDataError(
@@ -117,21 +129,25 @@ def validate_person_data(data: dict) -> dict:
     Raises:
         InvalidPatientDataError: Якщо відсутні поля або значення некоректні.
     """
+    # API може надіслати list / str замість object.
     if not isinstance(data, dict):
         raise InvalidPatientDataError("Дані пацієнта мають бути словником.")
 
+    # Усі FEATURES обов'язкові (включно зі smoking_history).
     missing = [field for field in FEATURES if field not in data]
     if missing:
         raise InvalidPatientDataError(
             f"Відсутні обов'язкові поля: {', '.join(missing)}."
         )
 
+    # Категоріальні поля — точний збіг з whitelist у config.
     gender = str(data["gender"]).strip()
     if gender not in GENDERS:
         raise InvalidPatientDataError(
             f"Невідома стать: {gender!r}. Допустимо: {', '.join(GENDERS)}."
         )
 
+    # Порожній рядок → «No Info» (як у датасеті).
     smoking_history = str(data["smoking_history"]).strip() or "No Info"
     if smoking_history not in SMOKING_HISTORY_VALUES:
         allowed = ", ".join(SMOKING_HISTORY_VALUES)
@@ -140,6 +156,7 @@ def validate_person_data(data: dict) -> dict:
             f"Допустимо: {allowed}."
         )
 
+    # Діапазони з одного місця (config), щоб UI / API / train збігались.
     age_min, age_max = VALID_RANGES["age"]
     bmi_min, bmi_max = VALID_RANGES["bmi"]
     hba1c_min, hba1c_max = VALID_RANGES["HbA1c_level"]
@@ -175,12 +192,14 @@ def parse_prediction_threshold(value, default: float | None = None) -> float:
     Args:
         value: Значення з форми (наприклад, «50» для 50%).
         default: Поріг за замовчуванням; якщо None — PREDICTION_THRESHOLD.
+            (Параметр зарезервований для сумісності викликів; при помилці
+            парсингу кидається виняток, а не silent default.)
 
     Returns:
         Валідний поріг у діапазоні THRESHOLD_MIN–THRESHOLD_MAX.
 
     Raises:
-        InvalidPatientDataError: Якщо значення не число.
+        InvalidPatientDataError: Якщо значення не число або поза діапазоном.
     """
     from config import (
         PREDICTION_THRESHOLD,
@@ -190,6 +209,10 @@ def parse_prediction_threshold(value, default: float | None = None) -> float:
 
     if default is None:
         default = PREDICTION_THRESHOLD
+
+    # Порожнє / відсутнє значення → поріг за замовчуванням.
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return float(default)
 
     try:
         percent = float(value)

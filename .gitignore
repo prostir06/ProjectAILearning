@@ -37,6 +37,9 @@ Thumbs.db
 *.joblib
 !diabetes_models.joblib
 
+# Legacy single-model artifact (замінений на diabetes_models.joblib)
+diabetes_model.joblib
+
 # Legacy dataset (активний файл: diabetes_prediction_dataset.csv)
 diabetes.csv
 
@@ -45,3 +48,4 @@ diabetes.csv
 
 # Cursor / local agent leftovers
 .git-rewrite/
+scripts/

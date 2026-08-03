@@ -52,6 +52,7 @@ from exceptions import DataLoadError
 from model_registry import (
     DEFAULT_MODEL_KEY,
     MODEL_LABELS_UK,
+    MODELS_USE_SMOTE,
     TUNING_PARAM_GRIDS,
     build_pipeline as registry_build_pipeline,
     create_smote,
@@ -134,10 +135,12 @@ def build_pipeline(model_key: str = DEFAULT_MODEL_KEY) -> Pipeline:
     if model_key not in classifiers:
         raise ValueError(f"Невідомий алгоритм: {model_key}")
 
+    # SMOTE лише для моделей з MODELS_USE_SMOTE (зараз — LR).
+    use_smote = MODELS_USE_SMOTE.get(model_key, False)
     return registry_build_pipeline(
         classifiers[model_key],
-        use_smote=True,
-        smote=create_smote(2),
+        use_smote=use_smote,
+        smote=create_smote(2) if use_smote else None,
     )
 
 

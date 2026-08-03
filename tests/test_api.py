@@ -20,11 +20,14 @@ def client():
 
 
 def test_health_returns_ok(client):
-    """GET /health повертає status=ok."""
+    """GET /health повертає status=ok і models_ready."""
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}
+    payload = response.get_json()
+    assert payload["status"] == "ok"
+    assert "models_ready" in payload
+    assert isinstance(payload["models_ready"], bool)
 
 
 def test_api_predict_accepts_percent_threshold_and_best_mode(

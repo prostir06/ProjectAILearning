@@ -12,7 +12,6 @@ from exceptions import DataLoadError
 import train_diabetes_model
 from train_diabetes_model import (
     build_pipeline,
-    compute_selection_score,
     evaluate_model,
     load_data,
     save_model,
@@ -22,10 +21,18 @@ from train_diabetes_model import (
 
 
 def test_build_pipeline_structure():
-    """Pipeline містить кроки preprocessor, smote і classifier."""
+    """Default RF: preprocessor + classifier, без SMOTE."""
     pipeline = build_pipeline()
 
     assert "preprocessor" in pipeline.named_steps
+    assert "classifier" in pipeline.named_steps
+    assert "smote" not in pipeline.named_steps
+
+
+def test_build_pipeline_logistic_uses_smote():
+    """Логістична регресія включає крок SMOTE."""
+    pipeline = build_pipeline("logistic_regression")
+
     assert "smote" in pipeline.named_steps
     assert "classifier" in pipeline.named_steps
 
@@ -103,20 +110,6 @@ def test_train_all_models_returns_metrics(tiny_dataframe):
         assert "selection_score" in model_metrics
 
     assert "optimal_threshold" in metrics["_meta"]
-
-
-def test_compute_selection_score_weights():
-    """Композитний бал враховує ROC-AUC, recall і F1."""
-    metrics = {"roc_auc": 0.9, "recall": 0.8, "f1": 0.7}
-    score = compute_selection_score(metrics)
-
-    assert score == round(0.5 * 0.9 + 0.3 * 0.8 + 0.2 * 0.7, 4)
-
-
-def test_compute_selection_score_missing_keys_returns_zero():
-    """Неповні метрики дають 0.0 замість винятку."""
-    assert compute_selection_score({"roc_auc": 0.9}) == 0.0
-    assert compute_selection_score({}) == 0.0
 
 
 def test_select_best_model_key():

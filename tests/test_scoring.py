@@ -34,3 +34,11 @@ def test_get_selection_score_recomputes_when_stored_missing():
     assert get_selection_score(
         {"roc_auc": 0.8, "recall": 0.8, "f1": 0.8}
     ) == 0.8
+
+
+def test_compute_and_get_tolerant_to_bad_input():
+    """Некоректні метрики не падають — повертають 0.0."""
+    assert compute_selection_score(None) == 0.0
+    assert compute_selection_score({"roc_auc": "x", "recall": 1, "f1": 1}) == 0.0
+    assert get_selection_score(None) == 0.0
+    assert get_selection_score({"selection_score": "bad"}) == 0.0
