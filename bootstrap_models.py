@@ -1,5 +1,5 @@
 """
-Спільний bootstrap моделей для Streamlit / Flask cold-start.
+Спільний bootstrap моделей для Flask cold-start.
 
 Якщо ``diabetes_models.joblib`` відсутній — навчає моделі (без тюнінгу
 за замовчуванням) і зберігає повний + легкий (best-only) бандли.

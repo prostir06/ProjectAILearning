@@ -33,7 +33,7 @@ htmlcov/
 Thumbs.db
 
 # Trained ML artifacts (проміжні / легкі бандли).
-# Основний пакет diabetes_models.joblib комітиться для Streamlit Cloud.
+# Основний пакет diabetes_models.joblib комітиться для деплою / Docker.
 *.joblib
 !diabetes_models.joblib
 
