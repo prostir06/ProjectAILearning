@@ -20,7 +20,7 @@ import bootstrap_models
 from explainability import get_explanation
 from flask import Flask, jsonify, render_template, request
 
-from config import (
+from diabetes.core.config import (
     DEFAULT_FORM,
     DEFAULT_THRESHOLD_PERCENT,
     FLASK_SECRET_KEY,
@@ -31,7 +31,7 @@ from config import (
     THRESHOLD_MIN,
     THRESHOLD_STEP_PERCENT,
 )
-from exceptions import (
+from diabetes.core.exceptions import (
     DiabetesProjectError,
     InvalidPatientDataError,
     ModelNotFoundError,
@@ -44,8 +44,8 @@ from predict_diabetes import (
     get_training_metrics,
     predict_with_summary,
 )
-from scoring import get_selection_score
-from validators import parse_prediction_threshold, validate_person_data
+from diabetes.core.scoring import get_selection_score
+from diabetes.core.validators import parse_prediction_threshold, validate_person_data
 
 # CSRF — опційна залежність (flask-wtf); без неї додаток працює з попередженням.
 try:

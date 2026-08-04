@@ -10,17 +10,17 @@ import json
 import joblib
 import pandas as pd
 
-from config import (
+from diabetes.core.config import (
     FEATURE_IMPORTANCE_PATH,
     FEATURES,
     METRICS_PATH,
     MODELS_BUNDLE_PATH,
     PREDICTION_THRESHOLD,
 )
-from exceptions import ModelNotFoundError, PredictionError
+from diabetes.core.exceptions import ModelNotFoundError, PredictionError
 from model_registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
-from scoring import get_selection_score
-from validators import validate_person_data
+from diabetes.core.scoring import get_selection_score
+from diabetes.core.validators import validate_person_data
 
 # Кеш завантаженого пакета моделей.
 _bundle = None

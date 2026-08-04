@@ -2,7 +2,7 @@
 Unit-тести для exceptions.py — ієрархія користувацьких винятків.
 """
 
-from exceptions import (
+from diabetes.core.exceptions import (
     DataLoadError,
     DiabetesProjectError,
     InvalidPatientDataError,

@@ -12,12 +12,12 @@ from __future__ import annotations
 import logging
 import os
 
-from config import (
+from diabetes.core.config import (
     BEST_MODELS_BUNDLE_PATH,
     MODELS_BUNDLE_PATH,
     QUICK_TRAIN_MAX_ROWS,
 )
-from exceptions import DataLoadError
+from diabetes.core.exceptions import DataLoadError
 from predict_diabetes import reset_pipeline_cache
 
 logger = logging.getLogger(__name__)

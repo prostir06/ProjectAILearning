@@ -9,7 +9,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from config import FEATURES, TARGET
+from diabetes.core.config import FEATURES, TARGET
 import predict_diabetes as predict_module
 import train_diabetes_model as train_module
 

@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from exceptions import DataLoadError
+from diabetes.core.exceptions import DataLoadError
 import train_diabetes_model
 from train_diabetes_model import (
     build_pipeline,
@@ -159,7 +159,7 @@ def test_save_model_write_error(trained_pipeline, tmp_path):
 
 def test_evaluate_model_returns_metrics(trained_pipeline, tiny_dataframe):
     """evaluate_model повертає усі ключі метрик."""
-    from config import FEATURES
+    from diabetes.core.config import FEATURES
     from train_diabetes_model import evaluate_model
 
     x_test = tiny_dataframe[FEATURES].iloc[:4]

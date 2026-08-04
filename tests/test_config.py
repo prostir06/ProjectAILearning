@@ -2,7 +2,7 @@
 Unit-тести для config.py — інваріанти констант і діапазонів.
 """
 
-from config import (
+from diabetes.core.config import (
     BEST_MODEL_WEIGHTS,
     FEATURES,
     GENDERS,

@@ -2,7 +2,7 @@
 Unit-тести для scoring.py — єдине джерело рейтингу моделей.
 """
 
-from scoring import compute_selection_score, get_selection_score
+from diabetes.core.scoring import compute_selection_score, get_selection_score
 
 
 def test_compute_selection_score_weights():

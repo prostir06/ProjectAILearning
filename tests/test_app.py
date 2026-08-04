@@ -16,7 +16,7 @@ from app import (
     parse_form,
     parse_threshold_from_form,
 )
-from exceptions import InvalidPatientDataError, ModelNotFoundError, PredictionError
+from diabetes.core.exceptions import InvalidPatientDataError, ModelNotFoundError, PredictionError
 
 
 @pytest.fixture
@@ -211,7 +211,7 @@ def test_get_error_message_types():
 
 def test_parse_form_handles_bad_form_data():
     """parse_form повертає DEFAULT_FORM при некоректному об'єкті форми."""
-    from config import DEFAULT_FORM
+    from diabetes.core.config import DEFAULT_FORM
 
     assert parse_form(None) == DEFAULT_FORM
     assert parse_form(42) == DEFAULT_FORM
@@ -278,7 +278,7 @@ def test_get_error_message_prediction_and_generic():
 
 def test_get_selection_score_invalid_metrics():
     """get_selection_score повертає 0.0 для некоректних метрик."""
-    from scoring import get_selection_score
+    from diabetes.core.scoring import get_selection_score
 
     assert get_selection_score(None) == 0.0
     assert get_selection_score({"selection_score": "bad"}) == 0.0
@@ -362,6 +362,6 @@ def test_health_models_ready_false_when_bundle_missing(client, monkeypatch):
 
 def test_get_selection_score_uses_stored_value():
     """get_selection_score віддає збережений selection_score."""
-    from scoring import get_selection_score
+    from diabetes.core.scoring import get_selection_score
 
     assert get_selection_score({"selection_score": 0.77}) == 0.77

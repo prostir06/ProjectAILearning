@@ -22,7 +22,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 
-from config import FEATURES
+from diabetes.core.config import FEATURES
 
 CATEGORICAL_FEATURES = ["gender", "smoking_history"]
 NUMERIC_FEATURES = [

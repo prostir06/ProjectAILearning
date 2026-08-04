@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from exceptions import ModelNotFoundError, PredictionError
+from diabetes.core.exceptions import ModelNotFoundError, PredictionError
 from predict_diabetes import (
     apply_threshold_to_results,
     build_prediction_summary,
@@ -107,7 +107,7 @@ def test_predict_model_not_found(sample_person):
 
 def test_predict_invalid_data_raises():
     """Некоректні дані викликають InvalidPatientDataError."""
-    from exceptions import InvalidPatientDataError
+    from diabetes.core.exceptions import InvalidPatientDataError
 
     with pytest.raises(InvalidPatientDataError):
         predict({"gender": "Female"})
@@ -380,7 +380,7 @@ def test_get_training_metrics_invalid_type(tmp_path):
 
 def test_get_selection_score_handles_invalid_values():
     """get_selection_score стійкий до некоректних типів."""
-    from scoring import get_selection_score
+    from diabetes.core.scoring import get_selection_score
 
     assert get_selection_score(None) == 0.0
     assert get_selection_score("bad") == 0.0

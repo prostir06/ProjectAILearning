@@ -28,7 +28,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import RandomizedSearchCV, train_test_split
 from sklearn.pipeline import Pipeline
 
-from config import (
+from diabetes.core.config import (
     BEST_MODELS_BUNDLE_PATH,
     DATA_PATH,
     FEATURE_IMPORTANCE_PATH,
@@ -48,7 +48,7 @@ from config import (
     TUNING_N_ITER,
     VAL_SIZE,
 )
-from exceptions import DataLoadError
+from diabetes.core.exceptions import DataLoadError
 from model_registry import (
     DEFAULT_MODEL_KEY,
     MODEL_LABELS_UK,
@@ -59,7 +59,7 @@ from model_registry import (
     get_classifiers,
     get_model_pipelines,
 )
-from scoring import compute_selection_score
+from diabetes.core.scoring import compute_selection_score
 
 try:
     import xgboost

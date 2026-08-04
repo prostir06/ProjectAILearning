@@ -4,8 +4,8 @@ Unit-тести для validators.py.
 
 import pytest
 
-from exceptions import InvalidPatientDataError
-from validators import validate_person_data
+from diabetes.core.exceptions import InvalidPatientDataError
+from diabetes.core.validators import validate_person_data
 
 
 def test_validate_person_data_success(sample_person):
@@ -120,7 +120,7 @@ def test_validate_person_data_invalid_binary_string(sample_person):
 
 def test_parse_prediction_threshold_success():
     """parse_prediction_threshold перетворює відсотки у частку."""
-    from validators import parse_prediction_threshold
+    from diabetes.core.validators import parse_prediction_threshold
 
     assert parse_prediction_threshold(50) == 0.5
     assert parse_prediction_threshold("30") == 0.3
@@ -128,7 +128,7 @@ def test_parse_prediction_threshold_success():
 
 def test_parse_prediction_threshold_out_of_range():
     """parse_prediction_threshold відхиляє значення поза діапазоном."""
-    from validators import parse_prediction_threshold
+    from diabetes.core.validators import parse_prediction_threshold
 
     with pytest.raises(InvalidPatientDataError, match="Поріг"):
         parse_prediction_threshold(5)
@@ -136,7 +136,7 @@ def test_parse_prediction_threshold_out_of_range():
 
 def test_parse_prediction_threshold_empty_uses_default():
     """Порожній / None поріг повертає default."""
-    from validators import parse_prediction_threshold
+    from diabetes.core.validators import parse_prediction_threshold
 
     assert parse_prediction_threshold(None, default=0.4) == 0.4
     assert parse_prediction_threshold("", default=0.35) == 0.35
