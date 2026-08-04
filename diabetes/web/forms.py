@@ -1,5 +1,10 @@
 """
 Хелпери Flask UI: форма, поріг, метрики, повідомлення про помилки.
+
+Усі публічні функції стійкі до битих вхідних даних:
+- parse_* — або default, або ``InvalidPatientDataError``;
+- load_* / get_default_threshold / build_index_context — ніколи не падають
+  назовні з необробленим винятком (лог + порожній результат / default).
 """
 
 from __future__ import annotations
@@ -64,14 +69,15 @@ def parse_threshold_from_form(
 
     Некоректне значення тихо замінюється на ``default``.
     """
-    if form_data is None or "prediction_threshold" not in form_data:
+    try:
+        if form_data is None or "prediction_threshold" not in form_data:
+            return default
+        raw = form_data.get("prediction_threshold")
+    except (TypeError, AttributeError):
         return default
 
     try:
-        return parse_prediction_threshold(
-            form_data.get("prediction_threshold"),
-            default=default,
-        )
+        return parse_prediction_threshold(raw, default=default)
     except InvalidPatientDataError:
         return default
 
@@ -96,10 +102,18 @@ def parse_threshold_from_payload(
             "Поріг ймовірності має бути числом."
         ) from exc
 
+    # 0.0–1.0 трактуємо як частку; >1 — як відсотки (30 → 0.30).
     if 0.0 <= numeric <= 1.0:
         threshold = numeric
     else:
-        threshold = parse_prediction_threshold(numeric, default=default)
+        try:
+            threshold = parse_prediction_threshold(numeric, default=default)
+        except InvalidPatientDataError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise InvalidPatientDataError(
+                "Поріг ймовірності має бути числом."
+            ) from exc
 
     if not THRESHOLD_MIN <= threshold <= THRESHOLD_MAX:
         raise InvalidPatientDataError(

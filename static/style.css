@@ -1,7 +1,12 @@
 /**
  * Стилі Flask UI для передбачення діабету.
- * CSS3: Flexbox / Grid, custom properties (--percent, --threshold),
- * conic-gradient для donut-діаграм, media queries для адаптивності.
+ *
+ * CSS3:
+ * - Flexbox / Grid для макета
+ * - custom properties (--percent, --threshold) для donut / слайдера
+ * - conic-gradient для кругових діаграм
+ * - media queries для вузьких екранів
+ * - box-sizing: border-box на всіх елементах
  */
 * {
   box-sizing: border-box;

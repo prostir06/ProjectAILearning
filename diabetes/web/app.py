@@ -51,11 +51,26 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> Flask:
-    """Створює й налаштовує Flask-додаток."""
+    """
+    Створює й налаштовує Flask-додаток.
+
+    Templates / static беруться з кореня репозиторію (``BASE_DIR``),
+    а не з каталогу пакета ``diabetes.web``.
+    """
+    templates_dir = BASE_DIR / "templates"
+    static_dir = BASE_DIR / "static"
+    try:
+        if not templates_dir.is_dir():
+            logger.warning("Каталог templates відсутній: %s", templates_dir)
+        if not static_dir.is_dir():
+            logger.warning("Каталог static відсутній: %s", static_dir)
+    except OSError as exc:
+        logger.warning("Не вдалося перевірити templates/static: %s", exc)
+
     application = Flask(
         __name__,
-        template_folder=str(BASE_DIR / "templates"),
-        static_folder=str(BASE_DIR / "static"),
+        template_folder=str(templates_dir),
+        static_folder=str(static_dir),
     )
     application.secret_key = FLASK_SECRET_KEY
 
@@ -140,7 +155,17 @@ def create_app() -> Flask:
         except (TypeError, ValueError):
             threshold_percent = DEFAULT_THRESHOLD_PERCENT
 
-        if request.method == "GET" and not MODELS_BUNDLE_PATH.exists():
+        # Cold-start: якщо бандла немає — пробуємо швидко навчити моделі.
+        models_missing = False
+        try:
+            models_missing = (
+                request.method == "GET" and not MODELS_BUNDLE_PATH.exists()
+            )
+        except OSError as exc:
+            logger.warning("index: не вдалося перевірити бандл: %s", exc)
+            models_missing = request.method == "GET"
+
+        if models_missing:
             try:
                 bootstrap_models.ensure_models_ready()
             except RuntimeError as exc:
