@@ -10,8 +10,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from diabetes.core.config import FEATURES, TARGET
-import predict_diabetes as predict_module
-import train_diabetes_model as train_module
+import diabetes.ml.predict as predict_module
+import diabetes.ml.train as train_module
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-import bootstrap_models
+import diabetes.ml.bootstrap as bootstrap_models
 
 
 def test_resolve_max_rows_uses_config_when_positive(monkeypatch):
@@ -28,7 +28,7 @@ def test_ensure_models_ready_when_bundle_exists(tmp_path, monkeypatch):
     bundle.write_bytes(b"ok")
     monkeypatch.setattr(bootstrap_models, "MODELS_BUNDLE_PATH", bundle)
 
-    with patch("train_diabetes_model.train_all_models") as train_mock:
+    with patch("diabetes.ml.train.train_all_models") as train_mock:
         assert bootstrap_models.ensure_models_ready() is True
         train_mock.assert_not_called()
 
@@ -44,7 +44,7 @@ def test_ensure_models_ready_raises_runtime_error(tmp_path, monkeypatch):
     )
 
     with patch(
-        "train_diabetes_model.train_all_models",
+        "diabetes.ml.train.train_all_models",
         side_effect=OSError("disk"),
     ):
         with pytest.raises(RuntimeError, match="першому запуску"):

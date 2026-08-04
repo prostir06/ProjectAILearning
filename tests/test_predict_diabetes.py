@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from diabetes.core.exceptions import ModelNotFoundError, PredictionError
-from predict_diabetes import (
+from diabetes.ml.predict import (
     apply_threshold_to_results,
     build_prediction_summary,
     get_training_metrics,
@@ -20,7 +20,7 @@ from predict_diabetes import (
 
 def test_predict_returns_expected_keys(sample_person, trained_pipeline):
     """Успішне передбачення повертає diabetes, label і probability."""
-    with patch("predict_diabetes._get_pipeline", return_value=trained_pipeline):
+    with patch("diabetes.ml.predict._get_pipeline", return_value=trained_pipeline):
         result = predict(sample_person)
 
     assert set(result.keys()) == {"diabetes", "label", "probability"}
@@ -46,9 +46,9 @@ def test_predict_all_returns_all_models(sample_person, trained_pipeline):
         },
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with patch(
-            "predict_diabetes.get_training_metrics",
+            "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
         ):
             results = predict_all(sample_person)
@@ -73,9 +73,9 @@ def test_predict_all_sorted_by_selection_score(sample_person, trained_pipeline):
         "model_labels": {"low": "Low", "high": "High"},
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with patch(
-            "predict_diabetes.get_training_metrics",
+            "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
         ):
             results = predict_all(sample_person)
@@ -87,7 +87,7 @@ def test_predict_all_sorted_by_selection_score(sample_person, trained_pipeline):
 
 def test_predict_label_matches_class(sample_person, trained_pipeline):
     """Текстова мітка відповідає числовому класу."""
-    with patch("predict_diabetes._get_pipeline", return_value=trained_pipeline):
+    with patch("diabetes.ml.predict._get_pipeline", return_value=trained_pipeline):
         result = predict(sample_person)
 
     if result["diabetes"] == 1:
@@ -98,7 +98,7 @@ def test_predict_label_matches_class(sample_person, trained_pipeline):
 
 def test_predict_model_not_found(sample_person):
     """Відсутня модель викликає ModelNotFoundError."""
-    with patch("predict_diabetes.MODELS_BUNDLE_PATH") as mock_path:
+    with patch("diabetes.ml.predict.MODELS_BUNDLE_PATH") as mock_path:
         mock_path.exists.return_value = False
 
         with pytest.raises(ModelNotFoundError, match="Моделі не знайдено"):
@@ -115,7 +115,7 @@ def test_predict_invalid_data_raises():
 
 def test_reset_pipeline_cache():
     """Скидання кешу дозволяє повторно завантажити модель."""
-    import predict_diabetes as module
+    import diabetes.ml.predict as module
 
     module._bundle = object()
     reset_pipeline_cache()
@@ -133,9 +133,9 @@ def test_predict_with_summary_returns_models_and_summary(
         "model_labels": {"random_forest": "Random Forest"},
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with patch(
-            "predict_diabetes.get_training_metrics",
+            "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
         ):
             result = predict_with_summary(sample_person)
@@ -149,13 +149,13 @@ def test_predict_with_summary_returns_models_and_summary(
 def test_get_bundle_empty_models_raises(tmp_path):
     """Порожній пакет моделей викликає PredictionError."""
     import joblib
-    from predict_diabetes import _get_bundle
+    from diabetes.ml.predict import _get_bundle
 
     reset_pipeline_cache()
     empty_bundle = tmp_path / "empty.joblib"
     joblib.dump({"models": {}}, empty_bundle)
 
-    with patch("predict_diabetes.MODELS_BUNDLE_PATH", empty_bundle):
+    with patch("diabetes.ml.predict.MODELS_BUNDLE_PATH", empty_bundle):
         with pytest.raises(PredictionError, match="не містить"):
             _get_bundle()
 
@@ -165,8 +165,8 @@ def test_get_training_metrics_invalid_json(tmp_path):
     bad_json = tmp_path / "metrics.json"
     bad_json.write_text("{invalid", encoding="utf-8")
 
-    with patch("predict_diabetes.METRICS_PATH", bad_json):
-        with patch("predict_diabetes._get_bundle", side_effect=ModelNotFoundError):
+    with patch("diabetes.ml.predict.METRICS_PATH", bad_json):
+        with patch("diabetes.ml.predict._get_bundle", side_effect=ModelNotFoundError):
             assert get_training_metrics() == {}
 
 
@@ -235,19 +235,19 @@ def test_apply_threshold_skips_broken_items():
 
 def test_get_bundle_optimal_threshold_from_metadata():
     """Читає optimal_threshold з metadata бандла."""
-    from predict_diabetes import get_bundle_optimal_threshold
+    from diabetes.ml.predict import get_bundle_optimal_threshold
 
     bundle = {"metadata": {"optimal_threshold": 0.35}, "metrics": {}}
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         assert get_bundle_optimal_threshold(default=0.5) == 0.35
 
 
 def test_get_bundle_optimal_threshold_falls_back_on_error():
     """Відсутній бандл → default."""
-    from predict_diabetes import get_bundle_optimal_threshold
+    from diabetes.ml.predict import get_bundle_optimal_threshold
 
     with patch(
-        "predict_diabetes._get_bundle",
+        "diabetes.ml.predict._get_bundle",
         side_effect=ModelNotFoundError("missing"),
     ):
         assert get_bundle_optimal_threshold(default=0.55) == 0.55
@@ -264,9 +264,9 @@ def test_predict_with_summary_respects_custom_threshold(
         "model_labels": {"random_forest": "Random Forest"},
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with patch(
-            "predict_diabetes.get_training_metrics",
+            "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
         ):
             result = predict_with_summary(sample_person, threshold=0.99)
@@ -294,9 +294,9 @@ def test_predict_with_summary_mode_best_returns_single_best_model(
         "default_model": "random_forest",
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with patch(
-            "predict_diabetes.get_training_metrics",
+            "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
         ):
             result = predict_with_summary(
@@ -315,33 +315,33 @@ def test_predict_with_summary_mode_best_returns_single_best_model(
 
 def test_get_bundle_corrupted_file(tmp_path):
     """Пошкоджений файл моделей викликає PredictionError."""
-    from predict_diabetes import _get_bundle
+    from diabetes.ml.predict import _get_bundle
 
     bad_model = tmp_path / "bad_models.joblib"
     bad_model.write_text("not a real model", encoding="utf-8")
 
-    with patch("predict_diabetes.MODELS_BUNDLE_PATH", bad_model):
+    with patch("diabetes.ml.predict.MODELS_BUNDLE_PATH", bad_model):
         with pytest.raises(PredictionError, match="завантажити моделі"):
             _get_bundle()
 
 
 def test_get_pipeline_unknown_model(sample_person, trained_pipeline):
     """Невідомий ключ моделі викликає PredictionError."""
-    from predict_diabetes import _get_pipeline
+    from diabetes.ml.predict import _get_pipeline
 
     bundle = {
         "models": {"random_forest": trained_pipeline},
         "default_model": "random_forest",
     }
 
-    with patch("predict_diabetes._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
         with pytest.raises(PredictionError, match="не знайдено"):
             _get_pipeline("unknown_model")
 
 
 def test_get_feature_importance_from_json(tmp_path):
     """get_feature_importance читає валідний JSON-файл."""
-    from predict_diabetes import get_feature_importance
+    from diabetes.ml.predict import get_feature_importance
 
     importance_file = tmp_path / "importance.json"
     importance_file.write_text(
@@ -349,7 +349,7 @@ def test_get_feature_importance_from_json(tmp_path):
         encoding="utf-8",
     )
 
-    with patch("predict_diabetes.FEATURE_IMPORTANCE_PATH", importance_file):
+    with patch("diabetes.ml.predict.FEATURE_IMPORTANCE_PATH", importance_file):
         result = get_feature_importance()
 
     assert len(result) == 1
@@ -358,13 +358,13 @@ def test_get_feature_importance_from_json(tmp_path):
 
 def test_get_feature_importance_invalid_json_type(tmp_path):
     """JSON не-список ігнорується, повертається fallback."""
-    from predict_diabetes import get_feature_importance
+    from diabetes.ml.predict import get_feature_importance
 
     bad_file = tmp_path / "importance.json"
     bad_file.write_text('{"not": "a list"}', encoding="utf-8")
 
-    with patch("predict_diabetes.FEATURE_IMPORTANCE_PATH", bad_file):
-        with patch("predict_diabetes._get_bundle", side_effect=ModelNotFoundError):
+    with patch("diabetes.ml.predict.FEATURE_IMPORTANCE_PATH", bad_file):
+        with patch("diabetes.ml.predict._get_bundle", side_effect=ModelNotFoundError):
             assert get_feature_importance() == []
 
 
@@ -373,8 +373,8 @@ def test_get_training_metrics_invalid_type(tmp_path):
     bad_file = tmp_path / "metrics.json"
     bad_file.write_text("[1, 2, 3]", encoding="utf-8")
 
-    with patch("predict_diabetes.METRICS_PATH", bad_file):
-        with patch("predict_diabetes._get_bundle", side_effect=ModelNotFoundError):
+    with patch("diabetes.ml.predict.METRICS_PATH", bad_file):
+        with patch("diabetes.ml.predict._get_bundle", side_effect=ModelNotFoundError):
             assert get_training_metrics() == {}
 
 

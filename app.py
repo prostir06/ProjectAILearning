@@ -16,8 +16,8 @@ from __future__ import annotations
 import logging
 import os
 
-import bootstrap_models
-from explainability import get_explanation
+import diabetes.ml.bootstrap as bootstrap_models
+from diabetes.ml.explainability import get_explanation
 from flask import Flask, jsonify, render_template, request
 
 from diabetes.core.config import (
@@ -37,8 +37,8 @@ from diabetes.core.exceptions import (
     ModelNotFoundError,
     PredictionError,
 )
-from model_registry import MODEL_LABELS_UK
-from predict_diabetes import (
+from diabetes.ml.registry import MODEL_LABELS_UK
+from diabetes.ml.predict import (
     get_bundle_optimal_threshold,
     get_feature_importance,
     get_training_metrics,

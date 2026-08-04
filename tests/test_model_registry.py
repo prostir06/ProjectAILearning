@@ -6,7 +6,7 @@ import pytest
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.ensemble import RandomForestClassifier
 
-from model_registry import (
+from diabetes.ml.registry import (
     DEFAULT_MODEL_KEY,
     MODEL_LABELS_UK,
     build_pipeline,
