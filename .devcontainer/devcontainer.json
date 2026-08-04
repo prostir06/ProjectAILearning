@@ -18,7 +18,7 @@
   },
   "updateContentCommand": "sudo apt-get update && sudo apt-get install -y --no-install-recommends libgomp1; [ -f requirements.txt ] && pip3 install --user -r requirements.txt; echo 'Packages installed'",
   "postAttachCommand": {
-    "server": "python app.py"
+    "server": "python run.py"
   },
   "portsAttributes": {
     "5000": {

@@ -31,15 +31,13 @@
 
 ```
 ProjectAILearning/
-├── app.py                      # Flask UI + REST API
-├── train_diabetes_model.py     # навчання (CLI: --no-tune, --models, --sample)
-├── predict_diabetes.py         # передбачення (mode=all|best)
-├── model_registry.py           # реєстр алгоритмів / pipelines
-├── scoring.py                  # єдиний selection_score
-├── bootstrap_models.py         # cold-start навчання
-├── explainability.py           # важливість ознак для /api/explain
-├── validators.py / config.py / exceptions.py
-├── diabetes_models.joblib      # повний пакет моделей (деплой)
+├── diabetes/
+│   ├── core/                 # config, exceptions, validators, scoring
+│   ├── ml/                   # train, predict, registry, bootstrap, explain
+│   └── web/                  # Flask create_app + forms
+├── run.py                    # Flask / Waitress entrypoint
+├── train.py                  # CLI навчання
+├── diabetes_models.joblib    # повний пакет моделей (деплой)
 ├── .github/workflows/ci.yml
 ├── Dockerfile / docker-compose.yml
 ├── templates/ / static/
@@ -68,7 +66,7 @@ pip install -r requirements.txt
 ### Flask UI
 
 ```bash
-python app.py
+python run.py
 ```
 
 Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000).
@@ -84,9 +82,9 @@ python app.py
 ### Навчання моделей
 
 ```bash
-python train_diabetes_model.py
-python train_diabetes_model.py --no-tune --sample 20000
-python train_diabetes_model.py --models rf,xgb --serve-best-only
+python train.py
+python train.py --no-tune --sample 20000
+python train.py --models rf,xgb --serve-best-only
 ```
 
 ### Тести
