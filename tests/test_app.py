@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from app import (
-    app,
+from diabetes.web.app import app
+from diabetes.web.forms import (
     build_index_context,
     format_metrics_for_display,
     get_default_threshold,
@@ -24,7 +24,7 @@ def client():
     """Flask test client."""
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    with patch("app.bootstrap_models.ensure_models_ready", return_value=True):
+    with patch("diabetes.web.app.bootstrap_models.ensure_models_ready", return_value=True):
         with app.test_client() as test_client:
             yield test_client
 
@@ -70,7 +70,7 @@ def test_index_post_success(client, sample_person):
         },
     }
 
-    with patch("app.predict_with_summary", return_value=mock_prediction):
+    with patch("diabetes.web.app.predict_with_summary", return_value=mock_prediction):
         response = client.post("/", data=form_data)
 
     assert response.status_code == 200
@@ -106,7 +106,7 @@ def test_index_post_model_not_found(client, sample_person):
     form_data = {key: str(value) for key, value in sample_person.items()}
 
     with patch(
-        "app.predict_with_summary",
+        "diabetes.web.app.predict_with_summary",
         side_effect=ModelNotFoundError("Моделі не знайдено."),
     ):
         response = client.post("/", data=form_data)
@@ -191,7 +191,7 @@ def test_format_metrics_for_display_invalid_input():
 
 def test_load_metrics_rows_handles_errors():
     """load_metrics_rows не піднімає виняток при збої."""
-    with patch("app.get_training_metrics", side_effect=RuntimeError("fail")):
+    with patch("diabetes.web.forms.get_training_metrics", side_effect=RuntimeError("fail")):
         assert load_metrics_rows() == []
 
 
@@ -222,7 +222,7 @@ def test_index_post_unexpected_error(client, sample_person):
     form_data = {key: str(value) for key, value in sample_person.items()}
 
     with patch(
-        "app.predict_with_summary",
+        "diabetes.web.app.predict_with_summary",
         side_effect=RuntimeError("unexpected"),
     ):
         response = client.post("/", data=form_data)
@@ -303,7 +303,7 @@ def test_index_post_custom_threshold(client, sample_person):
         },
     }
 
-    with patch("app.predict_with_summary", return_value=mock_prediction) as mock_predict:
+    with patch("diabetes.web.app.predict_with_summary", return_value=mock_prediction) as mock_predict:
         response = client.post("/", data=form_data)
 
     mock_predict.assert_called_once()
@@ -315,7 +315,7 @@ def test_index_post_custom_threshold(client, sample_person):
 def test_get_default_threshold_uses_bundle(monkeypatch):
     """get_default_threshold бере optimal threshold з бандла."""
     monkeypatch.setattr(
-        "app.get_bundle_optimal_threshold",
+        "diabetes.web.forms.get_bundle_optimal_threshold",
         lambda default=0.5: 0.42,
     )
     assert abs(get_default_threshold() - 0.42) < 1e-9
@@ -326,7 +326,7 @@ def test_get_default_threshold_fallback_on_error(monkeypatch):
     def _raise(**_kwargs):
         raise RuntimeError("bundle missing")
 
-    monkeypatch.setattr("app.get_bundle_optimal_threshold", _raise)
+    monkeypatch.setattr("diabetes.web.forms.get_bundle_optimal_threshold", _raise)
     assert get_default_threshold() == 0.5
 
 
@@ -353,7 +353,7 @@ def test_health_models_ready_false_when_bundle_missing(client, monkeypatch):
     """/health повертає models_ready=false, якщо файл бандла відсутній."""
     from pathlib import Path
 
-    monkeypatch.setattr("app.MODELS_BUNDLE_PATH", Path("missing_models.joblib"))
+    monkeypatch.setattr("diabetes.web.app.MODELS_BUNDLE_PATH", Path("missing_models.joblib"))
     response = client.get("/health")
 
     assert response.status_code == 200

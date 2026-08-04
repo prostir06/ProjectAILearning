@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app import app
+from diabetes.web.app import app
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def client():
     """Flask test client для JSON API."""
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    with patch("app.bootstrap_models.ensure_models_ready", return_value=True):
+    with patch("diabetes.web.app.bootstrap_models.ensure_models_ready", return_value=True):
         with app.test_client() as test_client:
             yield test_client
 
@@ -64,8 +64,8 @@ def test_api_predict_accepts_percent_threshold_and_best_mode(
         "mode": "best",
     }
 
-    with patch("app.validate_person_data", return_value=sample_person) as mock_validate:
-        with patch("app.predict_with_summary", return_value=mock_result) as mock_predict:
+    with patch("diabetes.web.app.validate_person_data", return_value=sample_person) as mock_validate:
+        with patch("diabetes.web.app.predict_with_summary", return_value=mock_result) as mock_predict:
             response = client.post("/api/predict", json=payload)
 
     assert response.status_code == 200
@@ -81,7 +81,7 @@ def test_api_predict_accepts_percent_threshold_and_best_mode(
 def test_api_explain_returns_list(client):
     """GET /api/explain повертає список ознак."""
     items = [{"feature": "age", "label_uk": "Вік", "importance": 0.5}]
-    with patch("app.get_explanation", return_value=items):
+    with patch("diabetes.web.app.get_explanation", return_value=items):
         response = client.get("/api/explain")
 
     assert response.status_code == 200
