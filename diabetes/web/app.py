@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import logging
 
-import diabetes.ml.bootstrap as bootstrap_models
 from flask import Flask, jsonify, render_template, request
 
+import diabetes.ml.bootstrap as bootstrap_models
 from diabetes.core.config import (
     BASE_DIR,
     DEFAULT_FORM,

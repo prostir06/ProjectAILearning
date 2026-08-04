@@ -149,6 +149,7 @@ def test_predict_with_summary_returns_models_and_summary(
 def test_get_bundle_empty_models_raises(tmp_path):
     """Порожній пакет моделей викликає PredictionError."""
     import joblib
+
     from diabetes.ml.predict import _get_bundle
 
     reset_pipeline_cache()

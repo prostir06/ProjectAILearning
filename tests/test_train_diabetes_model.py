@@ -2,14 +2,13 @@
 Unit-тести для train_diabetes_model.py.
 """
 
-import joblib
 from unittest.mock import patch
 
-import pandas as pd
+import joblib
 import pytest
 
-from diabetes.core.exceptions import DataLoadError
 import diabetes.ml.train as train_diabetes_model
+from diabetes.core.exceptions import DataLoadError
 from diabetes.ml.train import (
     build_pipeline,
     evaluate_model,
@@ -160,7 +159,6 @@ def test_save_model_write_error(trained_pipeline, tmp_path):
 def test_evaluate_model_returns_metrics(trained_pipeline, tiny_dataframe):
     """evaluate_model повертає усі ключі метрик."""
     from diabetes.core.config import FEATURES
-    from diabetes.ml.train import evaluate_model
 
     x_test = tiny_dataframe[FEATURES].iloc[:4]
     y_test = tiny_dataframe["diabetes"].iloc[:4]

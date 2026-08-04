@@ -18,9 +18,9 @@ from diabetes.core.config import (
     PREDICTION_THRESHOLD,
 )
 from diabetes.core.exceptions import ModelNotFoundError, PredictionError
-from diabetes.ml.registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
 from diabetes.core.scoring import get_selection_score
 from diabetes.core.validators import validate_person_data
+from diabetes.ml.registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
 
 # Кеш завантаженого пакета моделей.
 _bundle = None

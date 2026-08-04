@@ -9,9 +9,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from diabetes.core.config import FEATURES, TARGET
 import diabetes.ml.predict as predict_module
-import diabetes.ml.train as train_module
+from diabetes.core.config import FEATURES, TARGET
 
 
 @pytest.fixture

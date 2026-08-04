@@ -49,17 +49,19 @@ from diabetes.core.config import (
     VAL_SIZE,
 )
 from diabetes.core.exceptions import DataLoadError
+from diabetes.core.scoring import compute_selection_score
 from diabetes.ml.registry import (
     DEFAULT_MODEL_KEY,
     MODEL_LABELS_UK,
     MODELS_USE_SMOTE,
     TUNING_PARAM_GRIDS,
-    build_pipeline as registry_build_pipeline,
     create_smote,
     get_classifiers,
     get_model_pipelines,
 )
-from diabetes.core.scoring import compute_selection_score
+from diabetes.ml.registry import (
+    build_pipeline as registry_build_pipeline,
+)
 
 try:
     import xgboost

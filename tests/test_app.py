@@ -6,6 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
+from diabetes.core.exceptions import (
+    InvalidPatientDataError,
+    ModelNotFoundError,
+    PredictionError,
+)
 from diabetes.web.app import app
 from diabetes.web.forms import (
     build_index_context,
@@ -16,7 +21,6 @@ from diabetes.web.forms import (
     parse_form,
     parse_threshold_from_form,
 )
-from diabetes.core.exceptions import InvalidPatientDataError, ModelNotFoundError, PredictionError
 
 
 @pytest.fixture
