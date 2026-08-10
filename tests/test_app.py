@@ -28,9 +28,21 @@ def client():
     """Flask test client."""
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    with patch("diabetes.web.app.bootstrap_models.ensure_models_ready", return_value=True):
-        with app.test_client() as test_client:
-            yield test_client
+    with app.test_client() as test_client:
+        yield test_client
+
+
+def test_index_get_missing_models_shows_message(client, monkeypatch, tmp_path):
+    """GET без joblib не запускає навчання — показує підказку."""
+    missing = tmp_path / "missing.joblib"
+    monkeypatch.setattr("diabetes.web.app.MODELS_BUNDLE_PATH", missing)
+
+    with patch("diabetes.ml.bootstrap.ensure_models_ready") as bootstrap_mock:
+        response = client.get("/")
+
+    bootstrap_mock.assert_not_called()
+    assert response.status_code == 200
+    assert "python train.py" in response.data.decode("utf-8")
 
 
 def test_index_get_returns_form(client):
@@ -195,6 +207,9 @@ def test_format_metrics_for_display_invalid_input():
 
 def test_load_metrics_rows_handles_errors():
     """load_metrics_rows не піднімає виняток при збої."""
+    from diabetes.web import forms as forms_module
+
+    forms_module._metrics_cache = None
     with patch("diabetes.web.forms.get_training_metrics", side_effect=RuntimeError("fail")):
         assert load_metrics_rows() == []
 

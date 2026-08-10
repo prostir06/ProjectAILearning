@@ -14,7 +14,6 @@ import logging
 
 from flask import Flask, jsonify, render_template, request
 
-import diabetes.ml.bootstrap as bootstrap_models
 from diabetes.core.config import (
     BASE_DIR,
     DEFAULT_FORM,
@@ -155,8 +154,7 @@ def create_app() -> Flask:
         except (TypeError, ValueError):
             threshold_percent = DEFAULT_THRESHOLD_PERCENT
 
-        # Cold-start: якщо бандла немає — пробуємо швидко навчити моделі.
-        models_missing = False
+        # Без синхронного cold-start: якщо бандла немає — показуємо підказку.
         try:
             models_missing = (
                 request.method == "GET" and not MODELS_BUNDLE_PATH.exists()
@@ -166,13 +164,9 @@ def create_app() -> Flask:
             models_missing = request.method == "GET"
 
         if models_missing:
-            try:
-                bootstrap_models.ensure_models_ready()
-            except RuntimeError as exc:
-                error = str(exc)
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Cold-start моделей не вдався")
-                error = get_error_message(exc)
+            error = (
+                "Моделі не знайдено. Запустіть навчання: python train.py"
+            )
 
         metrics_rows = load_metrics_rows()
         feature_importance = load_feature_importance()

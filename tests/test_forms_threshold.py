@@ -2,10 +2,14 @@
 Unit-тести для diabetes.web.forms (поріг API та стійкість).
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from diabetes.core.exceptions import InvalidPatientDataError
+from diabetes.web import forms as forms_module
 from diabetes.web.forms import (
+    load_metrics_rows,
     parse_threshold_from_form,
     parse_threshold_from_payload,
 )
@@ -47,3 +51,19 @@ def test_parse_threshold_from_form_type_error_returns_default():
             raise TypeError("broken")
 
     assert parse_threshold_from_form(Broken(), default=0.5) == 0.5
+
+
+def test_load_metrics_rows_caches_by_mtime(monkeypatch):
+    """Повторний виклик не читає метрики з диска, якщо mtime не змінився."""
+    forms_module._metrics_cache = None
+    monkeypatch.setattr(forms_module, "_artifact_mtime", lambda _path: 42.0)
+
+    with patch(
+        "diabetes.web.forms.get_training_metrics",
+        return_value={"random_forest": {"roc_auc": 0.9}},
+    ) as get_metrics:
+        first = load_metrics_rows()
+        second = load_metrics_rows()
+
+    assert first == second
+    get_metrics.assert_called_once()

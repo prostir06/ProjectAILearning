@@ -14,9 +14,8 @@ def client():
     """Flask test client для JSON API."""
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    with patch("diabetes.web.app.bootstrap_models.ensure_models_ready", return_value=True):
-        with app.test_client() as test_client:
-            yield test_client
+    with app.test_client() as test_client:
+        yield test_client
 
 
 def test_health_returns_ok(client):

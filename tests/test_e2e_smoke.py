@@ -2,8 +2,6 @@
 Мінімальний smoke-тест Flask health endpoint.
 """
 
-from unittest.mock import patch
-
 from diabetes.web.app import app
 
 
@@ -12,9 +10,8 @@ def test_health_smoke():
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
 
-    with patch("diabetes.web.app.bootstrap_models.ensure_models_ready", return_value=True):
-        with app.test_client() as client:
-            response = client.get("/health")
+    with app.test_client() as client:
+        response = client.get("/health")
 
     assert response.status_code == 200
     payload = response.get_json()

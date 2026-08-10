@@ -14,6 +14,9 @@ import logging
 from diabetes.core.config import (
     DEFAULT_FORM,
     DEFAULT_THRESHOLD_PERCENT,
+    FEATURE_IMPORTANCE_PATH,
+    METRICS_PATH,
+    MODELS_BUNDLE_PATH,
     PREDICTION_THRESHOLD,
     SMOKING_OPTIONS_UK,
     THRESHOLD_MAX,
@@ -36,6 +39,18 @@ from diabetes.ml.predict import (
 from diabetes.ml.registry import MODEL_LABELS_UK
 
 logger = logging.getLogger(__name__)
+
+# Кеш UI-метрик за mtime артефактів (JSON або joblib).
+_metrics_cache: tuple[float, list[dict]] | None = None
+_importance_cache: tuple[float, list[dict]] | None = None
+
+
+def _artifact_mtime(path) -> float:
+    """Повертає mtime файлу або 0.0, якщо недоступний."""
+    try:
+        return path.stat().st_mtime if path.exists() else 0.0
+    except OSError:
+        return 0.0
 
 
 def parse_form(form_data) -> dict:
@@ -192,8 +207,17 @@ def format_metrics_for_display(metrics: dict) -> list[dict]:
 
 def load_metrics_rows() -> list[dict]:
     """Безпечно завантажує метрики; при помилці — порожній список."""
+    global _metrics_cache
     try:
-        return format_metrics_for_display(get_training_metrics())
+        mtime = max(
+            _artifact_mtime(METRICS_PATH),
+            _artifact_mtime(MODELS_BUNDLE_PATH),
+        )
+        if _metrics_cache is not None and _metrics_cache[0] == mtime:
+            return _metrics_cache[1]
+        rows = format_metrics_for_display(get_training_metrics())
+        _metrics_cache = (mtime, rows)
+        return rows
     except Exception as exc:  # noqa: BLE001
         logger.warning("Не вдалося завантажити метрики: %s", exc)
         return []
@@ -201,8 +225,17 @@ def load_metrics_rows() -> list[dict]:
 
 def load_feature_importance() -> list[dict]:
     """Безпечно завантажує важливість ознак; при помилці — []."""
+    global _importance_cache
     try:
-        return get_feature_importance()
+        mtime = max(
+            _artifact_mtime(FEATURE_IMPORTANCE_PATH),
+            _artifact_mtime(MODELS_BUNDLE_PATH),
+        )
+        if _importance_cache is not None and _importance_cache[0] == mtime:
+            return _importance_cache[1]
+        items = get_feature_importance()
+        _importance_cache = (mtime, items)
+        return items
     except Exception as exc:  # noqa: BLE001
         logger.warning("Не вдалося завантажити важливість ознак: %s", exc)
         return []

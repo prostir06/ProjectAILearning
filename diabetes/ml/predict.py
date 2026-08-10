@@ -6,11 +6,14 @@
 """
 
 import json
+import logging
+from pathlib import Path
 
 import joblib
 import pandas as pd
 
 from diabetes.core.config import (
+    BEST_MODELS_BUNDLE_PATH,
     FEATURE_IMPORTANCE_PATH,
     FEATURES,
     METRICS_PATH,
@@ -22,19 +25,46 @@ from diabetes.core.scoring import get_selection_score
 from diabetes.core.validators import validate_person_data
 from diabetes.ml.registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
 
-# Кеш завантаженого пакета моделей.
-_bundle = None
+logger = logging.getLogger(__name__)
+
+# Кеш завантажених пакетів: ``full`` — усі моделі, ``best`` — best-only joblib.
+_bundles: dict[str, dict | None] = {"full": None, "best": None}
 
 
 def reset_pipeline_cache() -> None:
     """Скидає кеш моделей (корисно для тестів)."""
-    global _bundle
-    _bundle = None
+    global _bundles
+    _bundles = {"full": None, "best": None}
 
 
-def _get_bundle() -> dict:
+def _validate_bundle(raw: object, path: Path) -> dict:
+    """Перевіряє структуру joblib-бандла."""
+    if not isinstance(raw, dict):
+        raise PredictionError(f"Файл моделей має некоректний формат: {path.name}.")
+    models = raw.get("models")
+    if not isinstance(models, dict) or not models:
+        raise PredictionError("Пакет моделей не містить жодного алгоритму.")
+    return raw
+
+
+def _load_bundle_file(path: Path) -> dict:
+    """Завантажує та валідує один joblib-файл."""
+    try:
+        raw = joblib.load(path)
+    except Exception as exc:
+        raise PredictionError(
+            f"Не вдалося завантажити моделі з {path}."
+        ) from exc
+    return _validate_bundle(raw, path)
+
+
+def _get_bundle(*, prefer_best_only: bool = False) -> dict:
     """
     Завантажує пакет моделей із диска (з кешуванням).
+
+    Args:
+        prefer_best_only: Якщо True — спочатку ``diabetes_models_best.joblib``,
+            інакше повний ``diabetes_models.joblib``.
 
     Returns:
         Словник із ключами models, metrics, default_model, model_labels.
@@ -43,31 +73,39 @@ def _get_bundle() -> dict:
         ModelNotFoundError: Якщо файл моделей відсутній.
         PredictionError: Якщо файл пошкоджений.
     """
-    global _bundle
+    cache_key = "best" if prefer_best_only else "full"
+    cached = _bundles.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if _bundle is not None:
-        return _bundle
+    paths: list[Path] = []
+    if prefer_best_only and BEST_MODELS_BUNDLE_PATH.exists():
+        paths.append(BEST_MODELS_BUNDLE_PATH)
+    if MODELS_BUNDLE_PATH.exists():
+        paths.append(MODELS_BUNDLE_PATH)
 
-    if not MODELS_BUNDLE_PATH.exists():
+    if not paths:
         raise ModelNotFoundError(
             "Моделі не знайдено. Спочатку запустіть: "
             "python train.py"
         )
 
-    try:
-        _bundle = joblib.load(MODELS_BUNDLE_PATH)
-    except Exception as exc:
-        raise PredictionError(
-            f"Не вдалося завантажити моделі з {MODELS_BUNDLE_PATH}."
-        ) from exc
+    last_error: Exception | None = None
+    for path in paths:
+        try:
+            bundle = _load_bundle_file(path)
+            _bundles[cache_key] = bundle
+            return bundle
+        except PredictionError as exc:
+            last_error = exc
+            logger.warning("Не вдалося завантажити %s: %s", path, exc)
 
-    if "models" not in _bundle or not isinstance(_bundle["models"], dict):
-        raise PredictionError("Файл моделей має некоректний формат.")
-
-    if not _bundle["models"]:
-        raise PredictionError("Пакет моделей не містить жодного алгоритму.")
-
-    return _bundle
+    if last_error is not None:
+        raise last_error
+    raise ModelNotFoundError(
+        "Моделі не знайдено. Спочатку запустіть: "
+        "python train.py"
+    )
 
 
 def _get_default_model_key() -> str:
@@ -413,11 +451,16 @@ def predict_with_summary(
     try:
         if resolved_mode == "best":
             validated = validate_person_data(person)
-            bundle = _get_bundle()
+            bundle = _get_bundle(prefer_best_only=True)
             best_key = bundle.get("best_model") or bundle.get(
                 "default_model", DEFAULT_MODEL_KEY
             )
-            pipeline = _get_pipeline(best_key)
+            models = bundle.get("models") or {}
+            if best_key not in models:
+                raise PredictionError(
+                    f"Алгоритм «{best_key}» не знайдено в пакеті."
+                )
+            pipeline = models[best_key]
             feature_frame = pd.DataFrame([validated], columns=FEATURES)
             prediction = _run_prediction(pipeline, feature_frame)
             metrics = get_training_metrics().get(best_key, {})

@@ -117,9 +117,10 @@ def test_reset_pipeline_cache():
     """Скидання кешу дозволяє повторно завантажити модель."""
     import diabetes.ml.predict as module
 
-    module._bundle = object()
+    module._bundles["full"] = object()
+    module._bundles["best"] = object()
     reset_pipeline_cache()
-    assert module._bundle is None
+    assert module._bundles == {"full": None, "best": None}
 
 
 def test_predict_with_summary_returns_models_and_summary(
@@ -295,7 +296,7 @@ def test_predict_with_summary_mode_best_returns_single_best_model(
         "default_model": "random_forest",
     }
 
-    with patch("diabetes.ml.predict._get_bundle", return_value=bundle):
+    with patch("diabetes.ml.predict._get_bundle", return_value=bundle) as get_bundle:
         with patch(
             "diabetes.ml.predict.get_training_metrics",
             return_value=bundle["metrics"],
@@ -306,12 +307,40 @@ def test_predict_with_summary_mode_best_returns_single_best_model(
                 mode="best",
             )
 
+    get_bundle.assert_called_once_with(prefer_best_only=True)
     assert result["mode"] == "best"
     assert len(result["models"]) == 1
     assert result["models"][0]["model_key"] == "random_forest"
     assert result["models"][0]["is_best"] is True
     assert result["summary"]["total_models"] == 1
     assert result["summary"]["weighted"] is False
+
+
+def test_get_bundle_prefers_best_only_file(tmp_path, monkeypatch):
+    """mode=best спочатку читає diabetes_models_best.joblib."""
+    import diabetes.ml.predict as predict_module
+    from diabetes.ml.predict import _get_bundle, reset_pipeline_cache
+
+    best_path = tmp_path / "best.joblib"
+    full_path = tmp_path / "full.joblib"
+    best_path.write_bytes(b"stub")
+    full_path.write_bytes(b"stub")
+
+    best_bundle = {
+        "models": {"hist_gradient_boosting": object()},
+        "metrics": {},
+        "best_model": "hist_gradient_boosting",
+    }
+
+    monkeypatch.setattr(predict_module, "BEST_MODELS_BUNDLE_PATH", best_path)
+    monkeypatch.setattr(predict_module, "MODELS_BUNDLE_PATH", full_path)
+
+    reset_pipeline_cache()
+    with patch("diabetes.ml.predict.joblib.load", return_value=best_bundle) as load:
+        bundle = _get_bundle(prefer_best_only=True)
+
+    load.assert_called_once_with(best_path)
+    assert bundle is best_bundle
 
 
 def test_get_bundle_corrupted_file(tmp_path):
