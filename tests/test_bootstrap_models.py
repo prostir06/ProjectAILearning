@@ -1,5 +1,5 @@
 """
-Unit-тести для bootstrap_models.py.
+Unit-тести для diabetes.ml.bootstrap.
 """
 
 from unittest.mock import patch

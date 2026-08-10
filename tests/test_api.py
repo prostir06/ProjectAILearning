@@ -1,5 +1,5 @@
 """
-API-тести для Flask-додатку app.py.
+API-тести для diabetes.web.app (JSON endpoints).
 """
 
 from unittest.mock import patch

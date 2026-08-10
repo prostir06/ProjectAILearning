@@ -1,5 +1,5 @@
 """
-Unit-тести для Flask-додатку app.py.
+Unit-тести для diabetes.web (Flask UI та forms).
 """
 
 from unittest.mock import patch

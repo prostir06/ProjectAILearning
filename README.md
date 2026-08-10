@@ -77,7 +77,26 @@ python run.py
 - Health: `GET /health`
 - API: `POST /api/predict`, `GET /api/explain`
 - Debug: `FLASK_DEBUG=1`
-- Секрет: `FLASK_SECRET_KEY`
+- Секрет і змінні: скопіюйте [`.env.example`](.env.example) → `.env`
+
+#### Приклад API (`POST /api/predict`)
+
+```json
+{
+  "gender": "Female",
+  "age": 54,
+  "hypertension": 0,
+  "heart_disease": 0,
+  "smoking_history": "No Info",
+  "bmi": 27.32,
+  "HbA1c_level": 6.6,
+  "blood_glucose_level": 140,
+  "threshold": 50,
+  "mode": "all"
+}
+```
+
+`threshold` — відсотки (50) або частка (0.5). `mode`: `all` | `best`.
 
 ### Навчання моделей
 

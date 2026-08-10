@@ -1,5 +1,5 @@
 """
-Unit-тести для train_diabetes_model.py.
+Unit-тести для diabetes.ml.train.
 """
 
 from unittest.mock import patch
@@ -7,7 +7,7 @@ from unittest.mock import patch
 import joblib
 import pytest
 
-import diabetes.ml.train as train_diabetes_model
+import diabetes.ml.train as train_module
 from diabetes.core.exceptions import DataLoadError
 from diabetes.ml.train import (
     build_pipeline,
@@ -81,7 +81,7 @@ def test_train_and_evaluate_with_tiny_data(tiny_dataframe):
     """Навчання на малому датасеті завершується успішно."""
     with patch("diabetes.ml.train.load_data", return_value=tiny_dataframe):
         models, metrics, best_key, _, optimal_threshold = (
-            train_diabetes_model.train_all_models(
+            train_module.train_all_models(
             enable_tuning=False,
         )
         )
@@ -96,7 +96,7 @@ def test_train_and_evaluate_with_tiny_data(tiny_dataframe):
 def test_train_all_models_returns_metrics(tiny_dataframe):
     """Кожен алгоритм має метрики accuracy та roc_auc."""
     with patch("diabetes.ml.train.load_data", return_value=tiny_dataframe):
-        _, metrics, _, _, _ = train_diabetes_model.train_all_models(
+        _, metrics, _, _, _ = train_module.train_all_models(
             enable_tuning=False,
         )
 

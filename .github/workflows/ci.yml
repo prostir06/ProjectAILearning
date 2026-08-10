@@ -38,3 +38,20 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t diabetes-prediction:ci .
+
+      - name: Smoke test container health
+        run: |
+          docker run -d --name diabetes-ci -p 5000:5000 \
+            -e FLASK_SECRET_KEY=ci-test-secret \
+            diabetes-prediction:ci
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5000/health; then
+              echo ""
+              docker stop diabetes-ci
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs diabetes-ci
+          docker stop diabetes-ci
+          exit 1

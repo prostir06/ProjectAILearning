@@ -1,5 +1,5 @@
 """
-Unit-тести для model_registry.py.
+Unit-тести для diabetes.ml.registry.
 """
 
 import pytest

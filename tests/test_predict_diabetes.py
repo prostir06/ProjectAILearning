@@ -1,5 +1,5 @@
 """
-Unit-тести для predict_diabetes.py.
+Unit-тести для diabetes.ml.predict.
 """
 
 from unittest.mock import patch

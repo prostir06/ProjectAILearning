@@ -51,7 +51,7 @@ def _get_bundle() -> dict:
     if not MODELS_BUNDLE_PATH.exists():
         raise ModelNotFoundError(
             "Моделі не знайдено. Спочатку запустіть: "
-            "python train_diabetes_model.py"
+            "python train.py"
         )
 
     try:
