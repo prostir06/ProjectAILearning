@@ -2,41 +2,41 @@
   {
     "feature": "HbA1c_level",
     "label_uk": "HbA1c",
-    "importance": 0.6343
+    "importance": 0.4728
   },
   {
     "feature": "blood_glucose_level",
     "label_uk": "Глюкоза в крові",
-    "importance": 0.2407
+    "importance": 0.2452
   },
   {
     "feature": "age",
     "label_uk": "Вік",
-    "importance": 0.0873
-  },
-  {
-    "feature": "bmi",
-    "label_uk": "ІМТ",
-    "importance": 0.0294
-  },
-  {
-    "feature": "smoking_history",
-    "label_uk": "Куріння",
-    "importance": 0.0042
+    "importance": 0.0864
   },
   {
     "feature": "hypertension",
     "label_uk": "Гіпертонія",
-    "importance": 0.0041
+    "importance": 0.0584
+  },
+  {
+    "feature": "smoking_history",
+    "label_uk": "Куріння",
+    "importance": 0.045
   },
   {
     "feature": "heart_disease",
     "label_uk": "Хвороби серця",
-    "importance": 0.0013
+    "importance": 0.0373
+  },
+  {
+    "feature": "bmi",
+    "label_uk": "ІМТ",
+    "importance": 0.0339
   },
   {
     "feature": "gender",
     "label_uk": "Стать",
-    "importance": -0.0014
+    "importance": 0.021
   }
 ]

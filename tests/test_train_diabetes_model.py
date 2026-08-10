@@ -2,6 +2,7 @@
 Unit-тести для diabetes.ml.train.
 """
 
+import math
 from unittest.mock import patch
 
 import joblib
@@ -277,3 +278,43 @@ def test_load_data_corrupted_csv(tmp_path):
     with patch("diabetes.ml.train.DATA_PATH", bad_csv):
         with pytest.raises(DataLoadError):
             load_data()
+
+
+def test_resolve_scale_pos_weight_uses_train_labels(tiny_dataframe):
+    """_resolve_scale_pos_weight обчислює ratio з реальних міток train."""
+    from diabetes.ml.registry import DEFAULT_SCALE_POS_WEIGHT
+
+    y_train = tiny_dataframe["diabetes"]
+    weight = train_module._resolve_scale_pos_weight(y_train)
+
+    assert weight >= DEFAULT_SCALE_POS_WEIGHT
+    assert math.isfinite(weight)
+
+
+def test_resolve_scale_pos_weight_fallback_on_compute_error():
+    """Несподіваний збій compute_scale_pos_weight не зупиняє навчання."""
+    from diabetes.ml.registry import DEFAULT_SCALE_POS_WEIGHT
+
+    with patch(
+        "diabetes.ml.train.compute_scale_pos_weight",
+        side_effect=RuntimeError("unexpected"),
+    ):
+        weight = train_module._resolve_scale_pos_weight([0, 1, 0])
+
+    assert weight == DEFAULT_SCALE_POS_WEIGHT
+
+
+def test_train_all_models_passes_scale_pos_weight_to_pipelines(tiny_dataframe):
+    """train_all_models передає обчислений scale_pos_weight у get_model_pipelines."""
+    with patch("diabetes.ml.train.load_data", return_value=tiny_dataframe):
+        with patch("diabetes.ml.train.get_model_pipelines") as get_pipelines:
+            get_pipelines.return_value = {}
+            with pytest.raises(DataLoadError, match="Немає моделей"):
+                train_module.train_all_models(
+                    enable_tuning=False,
+                    model_keys=["xgboost"],
+                )
+
+    _, kwargs = get_pipelines.call_args
+    assert "scale_pos_weight" in kwargs
+    assert kwargs["scale_pos_weight"] >= 1.0

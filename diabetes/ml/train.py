@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,9 +53,11 @@ from diabetes.core.exceptions import DataLoadError
 from diabetes.core.scoring import compute_selection_score
 from diabetes.ml.registry import (
     DEFAULT_MODEL_KEY,
+    DEFAULT_SCALE_POS_WEIGHT,
     MODEL_LABELS_UK,
     MODELS_USE_SMOTE,
     TUNING_PARAM_GRIDS,
+    compute_scale_pos_weight,
     create_smote,
     get_classifiers,
     get_model_pipelines,
@@ -76,6 +79,30 @@ MODEL_SHORTCUTS = {
     "dt": "decision_tree",
     "ada": "adaboost",
 }
+
+logger = logging.getLogger(__name__)
+
+
+def _resolve_scale_pos_weight(y_train) -> float:
+    """
+    Безпечно обчислює scale_pos_weight для XGBoost з train-міток.
+
+    Обгортка над ``compute_scale_pos_weight``: навіть при несподіваному
+    збої всередині повертає ``DEFAULT_SCALE_POS_WEIGHT``, щоб навчання
+    не зупинялось через допоміжний крок балансування класів.
+    """
+    try:
+        weight = compute_scale_pos_weight(y_train)
+    except Exception as exc:  # noqa: BLE001 — захист від регресій у numpy/pandas
+        logger.warning(
+            "Не вдалося обчислити scale_pos_weight (%s) — fallback %.1f",
+            exc,
+            DEFAULT_SCALE_POS_WEIGHT,
+        )
+        return DEFAULT_SCALE_POS_WEIGHT
+
+    logger.info("XGBoost scale_pos_weight=%.4f (train imbalance ratio)", weight)
+    return weight
 
 
 def load_data() -> pd.DataFrame:
@@ -346,6 +373,7 @@ def tune_top_models(
     x_tune, y_tune = _get_tuning_sample(x_train, y_train)
     minority_count = int(y_tune.value_counts().min())
     smote = create_smote(minority_count)
+    scale_pos_weight = _resolve_scale_pos_weight(y_train)
 
     for model_key in ranked_keys[:top_n]:
         if model_key not in TUNING_PARAM_GRIDS:
@@ -355,7 +383,11 @@ def tune_top_models(
         print(f"\nТюнінг: {label}...")
 
         try:
-            pipelines = get_model_pipelines(smote=smote, model_keys=[model_key])
+            pipelines = get_model_pipelines(
+                smote=smote,
+                model_keys=[model_key],
+                scale_pos_weight=scale_pos_weight,
+            )
             pipeline = pipelines.get(model_key)
             if pipeline is None:
                 continue
@@ -588,8 +620,14 @@ def train_all_models(
 
     minority_count = int(y_train.value_counts().min())
     smote = create_smote(minority_count)
+    # Дисбаланс класів на train → ratio для XGBoost (інші моделі — class_weight).
+    scale_pos_weight = _resolve_scale_pos_weight(y_train)
 
-    pipelines = get_model_pipelines(smote=smote, model_keys=model_keys)
+    pipelines = get_model_pipelines(
+        smote=smote,
+        model_keys=model_keys,
+        scale_pos_weight=scale_pos_weight,
+    )
     if model_keys is not None:
         model_keys_set = set(model_keys)
         pipelines = {

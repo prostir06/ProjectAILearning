@@ -1,21 +1,17 @@
 {
   "random_forest": {
-    "accuracy": 0.9106,
-    "error_rate": 0.0894,
-    "precision": 0.4858,
-    "recall": 0.8871,
-    "f1": 0.6278,
-    "roc_auc": 0.9755,
-    "pr_auc": 0.8742,
+    "accuracy": 0.9121,
+    "error_rate": 0.0879,
+    "precision": 0.4905,
+    "recall": 0.8886,
+    "f1": 0.6321,
+    "roc_auc": 0.9749,
+    "pr_auc": 0.8732,
     "threshold": 0.5,
     "label_uk": "Випадковий ліс (Random Forest)",
-    "selection_score": 0.8794,
-    "selection_score_validation": 0.8884,
-    "tuned": true,
-    "best_params": {
-      "classifier__n_estimators": 300,
-      "classifier__max_depth": 12
-    },
+    "selection_score": 0.8804,
+    "selection_score_validation": 0.8868,
+    "tuned": false,
     "evaluated_on": "test",
     "is_best": false
   },
@@ -54,7 +50,7 @@
       "classifier__learning_rate": 0.05
     },
     "evaluated_on": "test",
-    "is_best": true
+    "is_best": false
   },
   "decision_tree": {
     "accuracy": 0.9043,
@@ -89,25 +85,31 @@
     "is_best": false
   },
   "xgboost": {
-    "accuracy": 0.9721,
-    "error_rate": 0.0279,
-    "precision": 0.9652,
-    "recall": 0.6965,
-    "f1": 0.8091,
-    "roc_auc": 0.9784,
-    "pr_auc": 0.8802,
+    "accuracy": 0.9083,
+    "error_rate": 0.0917,
+    "precision": 0.4792,
+    "recall": 0.9145,
+    "f1": 0.6289,
+    "roc_auc": 0.9792,
+    "pr_auc": 0.8843,
     "threshold": 0.5,
     "label_uk": "XGBoost",
-    "selection_score": 0.86,
-    "selection_score_validation": 0.8664,
-    "tuned": false,
+    "selection_score": 0.8897,
+    "selection_score_validation": 0.8938,
+    "tuned": true,
+    "best_params": {
+      "classifier__subsample": 1.0,
+      "classifier__n_estimators": 100,
+      "classifier__max_depth": 6,
+      "classifier__learning_rate": 0.1
+    },
     "evaluated_on": "test",
-    "is_best": false
+    "is_best": true
   },
   "_meta": {
     "selected_on": "validation",
     "reported_on": "test",
-    "optimal_threshold": 0.53,
+    "optimal_threshold": 0.48,
     "default_threshold": 0.5,
     "threshold_search_min": 0.1,
     "threshold_search_max": 0.9,
