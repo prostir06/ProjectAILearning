@@ -2,7 +2,7 @@
 Оркестрація навчання: split → fit → tune → test metrics.
 
 Реалізація рознесена по ``data``, ``evaluate``, ``tune``, ``persist``, ``cli``.
-Цей модуль збирає пайплайн і реекспортує публічний API для тестів/bootstrap.
+Цей модуль збирає пайплайн і реекспортує публічний API для тестів і CLI.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ from diabetes.ml.registry import (
 )
 from diabetes.ml.tune import tune_top_models
 
-# Зворотна сумісність: bootstrap і тести імпортують звідси.
+# Зворотна сумісність: тести імпортують звідси.
 _resolve_scale_pos_weight = resolve_scale_pos_weight
 
 __all__ = [

@@ -20,14 +20,35 @@ from diabetes.core.exceptions import InvalidPatientDataError
 
 
 def _to_float(value: object) -> float:
-    """Перетворює object у float або кидає TypeError/ValueError."""
-    if isinstance(value, bool):
-        raise TypeError("bool is not a numeric field value")
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        return float(value.strip())
-    raise TypeError(f"unsupported type: {type(value)!r}")
+    """
+    Безпечно перетворює ``value`` у скінченний ``float``.
+
+    bool навмисно відхиляється (``True`` не має ставати ``1.0``).
+    NaN / ±inf теж відхиляються — інакше порівняння з діапазоном мовчки
+    проходить або ламає метрики.
+
+    Raises:
+        TypeError: Непідтримуваний тип (list, dict, None, bool, …).
+        ValueError: Порожній рядок, нечисло, overflow, NaN, inf.
+    """
+    try:
+        # bool є підкласом int у Python — перевіряємо раніше за int/float.
+        if isinstance(value, bool):
+            raise TypeError("bool is not a numeric field value")
+        if isinstance(value, (int, float)):
+            parsed = float(value)
+        elif isinstance(value, str):
+            parsed = float(value.strip())
+        else:
+            raise TypeError(f"unsupported type: {type(value)!r}")
+    except (TypeError, ValueError, OverflowError):
+        # OverflowError: занадто велике число в рядку («1e1000»).
+        raise
+
+    # NaN != NaN; inf ламає min/max-перевірки.
+    if parsed != parsed or parsed in {float("inf"), float("-inf")}:
+        raise ValueError("non-finite float")
+    return parsed
 
 
 def _parse_binary_field(name: str, value: object) -> int:
@@ -46,7 +67,7 @@ def _parse_binary_field(name: str, value: object) -> int:
     """
     try:
         parsed = int(_to_float(value))
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути 0 або 1."
         ) from exc
@@ -79,7 +100,7 @@ def _parse_float_field(
     """
     try:
         parsed = _to_float(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути числом."
         ) from exc
@@ -115,7 +136,7 @@ def _parse_int_field(
     """
     try:
         parsed = int(_to_float(value))
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути цілим числом."
         ) from exc
@@ -151,13 +172,20 @@ def validate_person_data(data: dict[str, Any]) -> dict[str, Any]:
             f"Відсутні обов'язкові поля: {', '.join(missing)}."
         )
 
-    gender = str(data["gender"]).strip()
+    try:
+        gender = str(data["gender"]).strip()
+        smoking_raw = str(data["smoking_history"]).strip()
+    except (TypeError, ValueError, KeyError) as exc:
+        raise InvalidPatientDataError(
+            "Некоректні текстові поля пацієнта."
+        ) from exc
+
     if gender not in GENDERS:
         raise InvalidPatientDataError(
             f"Невідома стать: {gender!r}. Допустимо: {', '.join(GENDERS)}."
         )
 
-    smoking_history = str(data["smoking_history"]).strip() or "No Info"
+    smoking_history = smoking_raw or "No Info"
     if smoking_history not in SMOKING_HISTORY_VALUES:
         allowed = ", ".join(SMOKING_HISTORY_VALUES)
         raise InvalidPatientDataError(
@@ -165,10 +193,16 @@ def validate_person_data(data: dict[str, Any]) -> dict[str, Any]:
             f"Допустимо: {allowed}."
         )
 
-    age_min, age_max = VALID_RANGES["age"]
-    bmi_min, bmi_max = VALID_RANGES["bmi"]
-    hba1c_min, hba1c_max = VALID_RANGES["HbA1c_level"]
-    glucose_min, glucose_max = VALID_RANGES["blood_glucose_level"]
+    try:
+        age_min, age_max = VALID_RANGES["age"]
+        bmi_min, bmi_max = VALID_RANGES["bmi"]
+        hba1c_min, hba1c_max = VALID_RANGES["HbA1c_level"]
+        glucose_min, glucose_max = VALID_RANGES["blood_glucose_level"]
+        glucose_lo, glucose_hi = int(glucose_min), int(glucose_max)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise InvalidPatientDataError(
+            "Конфігурація діапазонів полів пошкоджена."
+        ) from exc
 
     return {
         "gender": gender,
@@ -187,8 +221,8 @@ def validate_person_data(data: dict[str, Any]) -> dict[str, Any]:
         "blood_glucose_level": _parse_int_field(
             "blood_glucose_level",
             data["blood_glucose_level"],
-            int(glucose_min),
-            int(glucose_max),
+            glucose_lo,
+            glucose_hi,
         ),
     }
 
@@ -219,16 +253,20 @@ def parse_prediction_threshold(
         default = PREDICTION_THRESHOLD
 
     if value is None or (isinstance(value, str) and not value.strip()):
-        return float(default)
+        try:
+            return float(default)
+        except (TypeError, ValueError) as exc:
+            raise InvalidPatientDataError(
+                "Поріг за замовчуванням має бути числом."
+            ) from exc
 
     try:
         percent = _to_float(value)
-    except (TypeError, ValueError) as exc:
+        threshold = percent / 100.0
+    except (TypeError, ValueError, OverflowError, ZeroDivisionError) as exc:
         raise InvalidPatientDataError(
             "Поріг ймовірності має бути числом."
         ) from exc
-
-    threshold = percent / 100.0
     if not THRESHOLD_MIN <= threshold <= THRESHOLD_MAX:
         raise InvalidPatientDataError(
             f"Поріг має бути в діапазоні "

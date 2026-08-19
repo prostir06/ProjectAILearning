@@ -25,7 +25,7 @@
 - зважений ensemble-підсумок; режим передбачення `all` | `best`
 - веб-форма зі слайдером порогу та історією куріння
 - **Flask** UI (Waitress, CSRF) + API: `/health`, `/api/predict`, `/api/explain`
-- Docker (non-root), CI (GitHub Actions), unit-тести (`pytest`)
+- Docker (non-root), CI (GitHub Actions), unit-тести (`pytest`), ruff, mypy
 
 ## Структура
 
@@ -38,6 +38,7 @@ ProjectAILearning/
 ├── run.py                    # Flask / Waitress entrypoint
 ├── train.py                  # CLI навчання
 ├── diabetes_models.joblib    # повний пакет моделей (деплой)
+├── pyproject.toml            # mypy
 ├── .github/workflows/ci.yml
 ├── Dockerfile / docker-compose.yml
 ├── templates/ / static/

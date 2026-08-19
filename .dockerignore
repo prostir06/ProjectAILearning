@@ -16,7 +16,6 @@ htmlcov
 .idea
 .vscode
 .devcontainer
-.streamlit
 .DS_Store
 Thumbs.db
 diabetes.csv

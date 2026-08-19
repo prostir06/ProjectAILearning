@@ -5,7 +5,11 @@ Unit-тести для validators.py.
 import pytest
 
 from diabetes.core.exceptions import InvalidPatientDataError
-from diabetes.core.validators import validate_person_data
+from diabetes.core.validators import (
+    _to_float,
+    parse_prediction_threshold,
+    validate_person_data,
+)
 
 
 def test_validate_person_data_success(sample_person):
@@ -141,3 +145,50 @@ def test_parse_prediction_threshold_empty_uses_default():
     assert parse_prediction_threshold(None, default=0.4) == 0.4
     assert parse_prediction_threshold("", default=0.35) == 0.35
     assert parse_prediction_threshold("  ", default=0.5) == 0.5
+
+
+def test_to_float_accepts_int_float_and_numeric_string():
+    """_to_float нормалізує типові значення форми."""
+    assert _to_float(54) == 54.0
+    assert _to_float(27.5) == 27.5
+    assert _to_float("  6.1  ") == 6.1
+
+
+@pytest.mark.parametrize("bad", [True, False, None, [], {}, object()])
+def test_to_float_rejects_unsupported_types(bad):
+    """bool/None/контейнери не маскуються під числа."""
+    with pytest.raises(TypeError):
+        _to_float(bad)
+
+
+@pytest.mark.parametrize("bad", ["", "abc", "nan", "inf", "-inf"])
+def test_to_float_rejects_non_finite_or_empty(bad):
+    """Порожній рядок, NaN і inf відхиляються."""
+    with pytest.raises(ValueError):
+        _to_float(bad)
+
+
+def test_validate_person_data_rejects_bool_as_binary(sample_person):
+    """True/False не є валідними 0/1 для hypertension."""
+    sample_person["hypertension"] = True
+    with pytest.raises(InvalidPatientDataError, match="hypertension"):
+        validate_person_data(sample_person)
+
+
+def test_validate_person_data_rejects_nan_age(sample_person):
+    """NaN у віці → InvalidPatientDataError."""
+    sample_person["age"] = float("nan")
+    with pytest.raises(InvalidPatientDataError, match="age"):
+        validate_person_data(sample_person)
+
+
+def test_parse_prediction_threshold_rejects_non_finite():
+    """inf у порозі не проходить."""
+    with pytest.raises(InvalidPatientDataError, match="числом"):
+        parse_prediction_threshold(float("inf"))
+
+
+def test_parse_prediction_threshold_bad_default_raises():
+    """Битий default при порожньому value теж ловиться."""
+    with pytest.raises(InvalidPatientDataError, match="за замовчуванням"):
+        parse_prediction_threshold(None, default="bad")  # type: ignore[arg-type]

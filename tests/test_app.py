@@ -38,10 +38,8 @@ def test_index_get_missing_models_shows_message(client, monkeypatch, tmp_path):
     missing = tmp_path / "missing.joblib"
     monkeypatch.setattr("diabetes.web.app.MODELS_BUNDLE_PATH", missing)
 
-    with patch("diabetes.ml.bootstrap.ensure_models_ready") as bootstrap_mock:
-        response = client.get("/")
+    response = client.get("/")
 
-    bootstrap_mock.assert_not_called()
     assert response.status_code == 200
     assert "python train.py" in response.data.decode("utf-8")
 

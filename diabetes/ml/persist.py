@@ -28,12 +28,32 @@ except Exception:  # pragma: no cover - optional metadata only
 
 
 def build_bundle_metadata(optimal_threshold: float | None) -> dict[str, object]:
-    """Формує метадані бандла."""
+    """Формує метадані бандла; збій окремого поля не валить навчання."""
+    try:
+        trained_at = datetime.now(timezone.utc).isoformat()
+    except (OSError, OverflowError, ValueError):
+        trained_at = None
+
+    try:
+        sklearn_version = sklearn.__version__
+    except Exception:  # noqa: BLE001 — версія не критична для infer
+        sklearn_version = None
+
+    try:
+        xgboost_version = getattr(xgboost_lib, "__version__", None)
+    except Exception:  # noqa: BLE001
+        xgboost_version = None
+
+    try:
+        data_checksum = compute_data_checksum()
+    except Exception:  # noqa: BLE001
+        data_checksum = None
+
     return {
-        "trained_at": datetime.now(timezone.utc).isoformat(),
-        "sklearn_version": sklearn.__version__,
-        "xgboost_version": getattr(xgboost_lib, "__version__", None),
-        "data_checksum": compute_data_checksum(),
+        "trained_at": trained_at,
+        "sklearn_version": sklearn_version,
+        "xgboost_version": xgboost_version,
+        "data_checksum": data_checksum,
         "optimal_threshold": optimal_threshold,
     }
 
@@ -62,18 +82,26 @@ def save_models_bundle(
     try:
         joblib.dump(bundle, bundle_path)
         if also_save_best:
+            try:
+                best_pipeline = models[best_model_key]
+            except KeyError as exc:
+                raise OSError(
+                    f"Найкраща модель «{best_model_key}» відсутня в пакеті."
+                ) from exc
             best_bundle = {
                 **bundle,
-                "models": {best_model_key: models[best_model_key]},
+                "models": {best_model_key: best_pipeline},
                 "metrics": {
                     best_model_key: metrics.get(best_model_key, {}),
                     "_meta": metrics.get("_meta", {}),
                 },
             }
             joblib.dump(best_bundle, BEST_MODELS_BUNDLE_PATH)
-    except OSError as exc:
+    except OSError:
+        raise
+    except (TypeError, ValueError) as exc:
         raise OSError(
-            f"Не вдалося зберегти моделі: {bundle_path}"
+            f"Не вдалося серіалізувати моделі: {bundle_path}"
         ) from exc
 
     print(f"\nМоделі збережено: {bundle_path}")
@@ -92,7 +120,7 @@ def save_metrics_json(
             json.dumps(metrics, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-    except OSError as exc:
+    except (OSError, TypeError, ValueError) as exc:
         raise OSError(
             f"Не вдалося зберегти метрики: {metrics_path}"
         ) from exc
@@ -110,7 +138,7 @@ def save_feature_importance(
             json.dumps(feature_importance, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-    except OSError as exc:
+    except (OSError, TypeError, ValueError) as exc:
         raise OSError(
             f"Не вдалося зберегти важливість ознак: {importance_path}"
         ) from exc

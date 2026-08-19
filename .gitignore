@@ -49,3 +49,6 @@ diabetes.csv
 # Cursor / local agent leftovers
 .git-rewrite/
 scripts/
+tmp_*.json
+tmp_*.joblib
+canvases/
