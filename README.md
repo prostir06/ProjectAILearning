@@ -33,8 +33,8 @@
 ProjectAILearning/
 ├── diabetes/
 │   ├── core/                 # config, exceptions, validators, scoring
-│   ├── ml/                   # train, predict, registry, bootstrap, explain
-│   └── web/                  # Flask create_app + forms
+│   ├── ml/                   # data, train, tune, persist, predict, registry
+│   └── web/                  # create_app + forms + wsgi
 ├── run.py                    # Flask / Waitress entrypoint
 ├── train.py                  # CLI навчання
 ├── diabetes_models.joblib    # повний пакет моделей (деплой)
@@ -71,8 +71,8 @@ python run.py
 
 Відкрийте [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
-Якщо `diabetes_models.joblib` відсутній, додаток швидко навчить моделі без тюнінгу
-(`QUICK_TRAIN_MAX_ROWS`, за замовчуванням 20000). Для продакшену комітьте готовий joblib.
+Якщо `diabetes_models.joblib` відсутній, UI покаже підказку навчити моделі:
+`python train.py` (без авто-навчання на GET /). Для продакшену кладіть готовий joblib у образ.
 
 - Health: `GET /health`
 - API: `POST /api/predict`, `GET /api/explain`

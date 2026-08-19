@@ -49,7 +49,7 @@ def test_load_data_missing_file(tmp_path):
     """Відсутній файл даних викликає DataLoadError."""
     missing = tmp_path / "missing.csv"
 
-    with patch("diabetes.ml.train.DATA_PATH", missing):
+    with patch("diabetes.ml.data.DATA_PATH", missing):
         with pytest.raises(DataLoadError, match="не знайдено"):
             load_data()
 
@@ -59,7 +59,7 @@ def test_load_data_missing_columns(tmp_path):
     bad_csv = tmp_path / "bad.csv"
     bad_csv.write_text("gender,age\nFemale,30\n", encoding="utf-8")
 
-    with patch("diabetes.ml.train.DATA_PATH", bad_csv):
+    with patch("diabetes.ml.data.DATA_PATH", bad_csv):
         with pytest.raises(DataLoadError, match="відсутні стовпці"):
             load_data()
 
@@ -73,7 +73,7 @@ def test_load_data_empty_after_dropna(tmp_path):
     )
     empty_csv.write_text(header, encoding="utf-8")
 
-    with patch("diabetes.ml.train.DATA_PATH", empty_csv):
+    with patch("diabetes.ml.data.DATA_PATH", empty_csv):
         with pytest.raises(DataLoadError, match="порожнім"):
             load_data()
 
@@ -152,7 +152,7 @@ def test_save_model_write_error(trained_pipeline, tmp_path):
     model_dir.mkdir()
     model_file = model_dir / "model.joblib"
 
-    with patch("diabetes.ml.train.joblib.dump", side_effect=OSError("denied")):
+    with patch("diabetes.ml.persist.joblib.dump", side_effect=OSError("denied")):
         with pytest.raises(OSError, match="зберегти модель"):
             save_model(trained_pipeline, model_file)
 
@@ -194,7 +194,7 @@ def test_save_models_bundle_writes_metadata_and_best_only_file(
     }
 
     with patch(
-        "diabetes.ml.train.BEST_MODELS_BUNDLE_PATH",
+        "diabetes.ml.persist.BEST_MODELS_BUNDLE_PATH",
         best_bundle_path,
     ):
         save_models_bundle(
@@ -275,7 +275,7 @@ def test_load_data_corrupted_csv(tmp_path):
     bad_csv = tmp_path / "bad.csv"
     bad_csv.write_bytes(b"\xff\xfe invalid binary")
 
-    with patch("diabetes.ml.train.DATA_PATH", bad_csv):
+    with patch("diabetes.ml.data.DATA_PATH", bad_csv):
         with pytest.raises(DataLoadError):
             load_data()
 
@@ -296,7 +296,7 @@ def test_resolve_scale_pos_weight_fallback_on_compute_error():
     from diabetes.ml.registry import DEFAULT_SCALE_POS_WEIGHT
 
     with patch(
-        "diabetes.ml.train.compute_scale_pos_weight",
+        "diabetes.ml.registry.compute_scale_pos_weight",
         side_effect=RuntimeError("unexpected"),
     ):
         weight = train_module._resolve_scale_pos_weight([0, 1, 0])
@@ -318,3 +318,30 @@ def test_train_all_models_passes_scale_pos_weight_to_pipelines(tiny_dataframe):
     _, kwargs = get_pipelines.call_args
     assert "scale_pos_weight" in kwargs
     assert kwargs["scale_pos_weight"] >= 1.0
+
+
+def test_split_dataset_returns_three_partitions(tiny_dataframe):
+    """3-way split зберігає всі рядки."""
+    from diabetes.core.config import FEATURES
+    from diabetes.ml.data import split_dataset
+
+    x_train, x_val, x_test, y_train, y_val, y_test = split_dataset(
+        tiny_dataframe[FEATURES],
+        tiny_dataframe["diabetes"],
+    )
+    total = len(x_train) + len(x_val) + len(x_test)
+    assert total == len(tiny_dataframe)
+    assert len(y_train) == len(x_train)
+    assert len(y_val) == len(x_val)
+    assert len(y_test) == len(x_test)
+
+
+def test_find_optimal_threshold_in_bounds(trained_pipeline, tiny_dataframe):
+    """Youden-поріг лежить у дозволеному діапазоні."""
+    from diabetes.core.config import FEATURES, THRESHOLD_MAX, THRESHOLD_MIN
+    from diabetes.ml.evaluate import find_optimal_threshold
+
+    x_val = tiny_dataframe[FEATURES]
+    y_val = tiny_dataframe["diabetes"]
+    threshold = find_optimal_threshold(trained_pipeline, x_val, y_val)
+    assert THRESHOLD_MIN <= threshold <= THRESHOLD_MAX

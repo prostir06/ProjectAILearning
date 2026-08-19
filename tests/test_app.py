@@ -11,7 +11,7 @@ from diabetes.core.exceptions import (
     ModelNotFoundError,
     PredictionError,
 )
-from diabetes.web.app import app
+from diabetes.web.app import create_app
 from diabetes.web.forms import (
     build_index_context,
     format_metrics_for_display,
@@ -26,9 +26,10 @@ from diabetes.web.forms import (
 @pytest.fixture
 def client():
     """Flask test client."""
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False
-    with app.test_client() as test_client:
+    application = create_app()
+    application.config["TESTING"] = True
+    application.config["WTF_CSRF_ENABLED"] = False
+    with application.test_client() as test_client:
         yield test_client
 
 

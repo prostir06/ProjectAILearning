@@ -39,8 +39,7 @@ def test_main_debug_runs_flask(monkeypatch):
 
     fake_app = MagicMock()
     with patch("diabetes.web.app.create_app", return_value=fake_app):
-        with patch("diabetes.web.app.app", fake_app):
-            assert run_module.main() == 0
+        assert run_module.main() == 0
 
     fake_app.run.assert_called_once_with(
         debug=True,
@@ -60,9 +59,8 @@ def test_main_prod_uses_waitress(monkeypatch):
     waitress_mod = MagicMock(serve=serve)
 
     with patch("diabetes.web.app.create_app", return_value=fake_app):
-        with patch("diabetes.web.app.app", fake_app):
-            with patch.dict("sys.modules", {"waitress": waitress_mod}):
-                assert run_module.main() == 0
+        with patch.dict("sys.modules", {"waitress": waitress_mod}):
+            assert run_module.main() == 0
 
     serve.assert_called_once_with(fake_app, host="0.0.0.0", port=5000)
 
@@ -76,8 +74,7 @@ def test_main_returns_1_when_create_app_fails(monkeypatch):
         "diabetes.web.app.create_app",
         side_effect=RuntimeError("broken"),
     ):
-        with patch("diabetes.web.app.app", MagicMock()):
-            assert run_module.main() == 1
+        assert run_module.main() == 1
 
 
 def test_main_waitress_oserror_returns_1(monkeypatch):
@@ -90,6 +87,5 @@ def test_main_waitress_oserror_returns_1(monkeypatch):
     waitress_mod = MagicMock(serve=serve)
 
     with patch("diabetes.web.app.create_app", return_value=fake_app):
-        with patch("diabetes.web.app.app", fake_app):
-            with patch.dict("sys.modules", {"waitress": waitress_mod}):
-                assert run_module.main() == 1
+        with patch.dict("sys.modules", {"waitress": waitress_mod}):
+            assert run_module.main() == 1

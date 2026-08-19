@@ -3,6 +3,7 @@ Unit-тести для diabetes.ml.registry (алгоритми, SMOTE, scale_po
 """
 
 import math
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -182,3 +183,14 @@ def test_compute_scale_pos_weight_logs_on_none(caplog):
     with caplog.at_level("WARNING"):
         compute_scale_pos_weight(None)
     assert "y=None" in caplog.text
+
+
+def test_resolve_scale_pos_weight_fallback_on_unexpected_error():
+    """resolve_scale_pos_weight не прокидає збій compute_scale_pos_weight."""
+    from diabetes.ml.registry import resolve_scale_pos_weight
+
+    with patch(
+        "diabetes.ml.registry.compute_scale_pos_weight",
+        side_effect=RuntimeError("unexpected"),
+    ):
+        assert resolve_scale_pos_weight([0, 1]) == DEFAULT_SCALE_POS_WEIGHT

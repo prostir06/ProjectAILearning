@@ -231,6 +231,27 @@ def compute_scale_pos_weight(y) -> float:
     return normalize_scale_pos_weight(float(neg_count) / float(pos_count))
 
 
+def resolve_scale_pos_weight(y_train) -> float:
+    """
+    Безпечно обчислює scale_pos_weight для XGBoost з train-міток.
+
+    Навіть при несподіваному збої всередині повертає
+    ``DEFAULT_SCALE_POS_WEIGHT``, щоб навчання не зупинялось.
+    """
+    try:
+        weight = compute_scale_pos_weight(y_train)
+    except Exception as exc:  # noqa: BLE001 — захист від регресій у numpy/pandas
+        logger.warning(
+            "Не вдалося обчислити scale_pos_weight (%s) — fallback %.1f",
+            exc,
+            DEFAULT_SCALE_POS_WEIGHT,
+        )
+        return DEFAULT_SCALE_POS_WEIGHT
+
+    logger.info("XGBoost scale_pos_weight=%.4f (train imbalance ratio)", weight)
+    return weight
+
+
 def get_classifiers(*, scale_pos_weight: float = DEFAULT_SCALE_POS_WEIGHT) -> dict[str, ClassifierMixin]:
     """
     Повертає словник класифікаторів для порівняння.

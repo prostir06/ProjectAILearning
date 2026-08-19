@@ -2,15 +2,16 @@
 Мінімальний smoke-тест Flask health endpoint.
 """
 
-from diabetes.web.app import app
+from diabetes.web.app import create_app
 
 
 def test_health_smoke():
     """Базовий smoke: /health відповідає 200."""
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False
+    application = create_app()
+    application.config["TESTING"] = True
+    application.config["WTF_CSRF_ENABLED"] = False
 
-    with app.test_client() as client:
+    with application.test_client() as client:
         response = client.get("/health")
 
     assert response.status_code == 200

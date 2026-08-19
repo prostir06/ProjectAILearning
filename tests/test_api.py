@@ -6,15 +6,16 @@ from unittest.mock import patch
 
 import pytest
 
-from diabetes.web.app import app
+from diabetes.web.app import create_app
 
 
 @pytest.fixture
 def client():
     """Flask test client для JSON API."""
-    app.config["TESTING"] = True
-    app.config["WTF_CSRF_ENABLED"] = False
-    with app.test_client() as test_client:
+    application = create_app()
+    application.config["TESTING"] = True
+    application.config["WTF_CSRF_ENABLED"] = False
+    with application.test_client() as test_client:
         yield test_client
 
 

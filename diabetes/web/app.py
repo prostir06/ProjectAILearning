@@ -225,6 +225,3 @@ def create_app() -> Flask:
             return get_error_message(error), 500
 
     return application
-
-
-app = create_app()

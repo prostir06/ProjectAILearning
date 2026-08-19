@@ -47,14 +47,13 @@ def main() -> int:
     port = _resolve_port()
 
     try:
-        from diabetes.web.app import app, create_app
+        from diabetes.web.app import create_app
     except Exception as exc:  # noqa: BLE001 — старт без traceback у консолі користувача
         logger.exception("Не вдалося імпортувати Flask-додаток: %s", exc)
         return 1
 
     try:
-        # У debug створюємо свіжий app (reloader-friendly); у prod — модульний singleton.
-        application = create_app() if debug_mode else app
+        application = create_app()
     except Exception as exc:  # noqa: BLE001
         logger.exception("Не вдалося створити Flask-додаток: %s", exc)
         return 1
