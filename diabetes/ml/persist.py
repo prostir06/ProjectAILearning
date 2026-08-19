@@ -22,9 +22,9 @@ from diabetes.ml.data import compute_data_checksum
 from diabetes.ml.registry import DEFAULT_MODEL_KEY, MODEL_LABELS_UK
 
 try:
-    import xgboost
+    import xgboost as xgboost_lib
 except Exception:  # pragma: no cover - optional metadata only
-    xgboost = None
+    xgboost_lib = None
 
 
 def build_bundle_metadata(optimal_threshold: float | None) -> dict[str, object]:
@@ -32,7 +32,7 @@ def build_bundle_metadata(optimal_threshold: float | None) -> dict[str, object]:
     return {
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "sklearn_version": sklearn.__version__,
-        "xgboost_version": getattr(xgboost, "__version__", None),
+        "xgboost_version": getattr(xgboost_lib, "__version__", None),
         "data_checksum": compute_data_checksum(),
         "optimal_threshold": optimal_threshold,
     }

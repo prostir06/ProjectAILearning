@@ -27,6 +27,9 @@ jobs:
       - name: Ruff
         run: python -m ruff check diabetes run.py train.py tests
 
+      - name: Mypy
+        run: python -m mypy
+
       - name: Run unit tests
         run: python -m pytest tests/ -q
 

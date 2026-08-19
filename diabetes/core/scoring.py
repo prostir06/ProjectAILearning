@@ -7,10 +7,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from diabetes.core.config import BEST_MODEL_WEIGHTS
 
 
-def compute_selection_score(metrics: dict | None) -> float:
+def compute_selection_score(metrics: dict[str, Any] | None) -> float:
     """
     Рахує зважений бал з ``roc_auc`` / ``recall`` / ``f1``.
 
@@ -42,7 +44,7 @@ def compute_selection_score(metrics: dict | None) -> float:
         return 0.0
 
 
-def get_selection_score(metrics: dict | None) -> float:
+def get_selection_score(metrics: dict[str, Any] | None) -> float:
     """
     Повертає збережений ``selection_score`` або обчислює його.
 

@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from diabetes.core.config import (
     FEATURES,
     GENDERS,
@@ -17,7 +19,18 @@ from diabetes.core.config import (
 from diabetes.core.exceptions import InvalidPatientDataError
 
 
-def _parse_binary_field(name: str, value) -> int:
+def _to_float(value: object) -> float:
+    """Перетворює object у float або кидає TypeError/ValueError."""
+    if isinstance(value, bool):
+        raise TypeError("bool is not a numeric field value")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        return float(value.strip())
+    raise TypeError(f"unsupported type: {type(value)!r}")
+
+
+def _parse_binary_field(name: str, value: object) -> int:
     """
     Перетворює бінарне поле (0/1) у ціле число.
 
@@ -32,7 +45,7 @@ def _parse_binary_field(name: str, value) -> int:
         InvalidPatientDataError: Якщо значення не 0 і не 1.
     """
     try:
-        parsed = int(value)
+        parsed = int(_to_float(value))
     except (TypeError, ValueError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути 0 або 1."
@@ -46,7 +59,9 @@ def _parse_binary_field(name: str, value) -> int:
     return parsed
 
 
-def _parse_float_field(name: str, value, min_val: float, max_val: float) -> float:
+def _parse_float_field(
+    name: str, value: object, min_val: float, max_val: float
+) -> float:
     """
     Перетворює числове поле у float і перевіряє діапазон.
 
@@ -63,7 +78,7 @@ def _parse_float_field(name: str, value, min_val: float, max_val: float) -> floa
         InvalidPatientDataError: Якщо значення не число або поза діапазоном.
     """
     try:
-        parsed = float(value)
+        parsed = _to_float(value)
     except (TypeError, ValueError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути числом."
@@ -78,7 +93,9 @@ def _parse_float_field(name: str, value, min_val: float, max_val: float) -> floa
     return parsed
 
 
-def _parse_int_field(name: str, value, min_val: int, max_val: int) -> int:
+def _parse_int_field(
+    name: str, value: object, min_val: int, max_val: int
+) -> int:
     """
     Перетворює числове поле у int і перевіряє діапазон.
 
@@ -97,7 +114,7 @@ def _parse_int_field(name: str, value, min_val: int, max_val: int) -> int:
         InvalidPatientDataError: Якщо значення не число або поза діапазоном.
     """
     try:
-        parsed = int(float(value))
+        parsed = int(_to_float(value))
     except (TypeError, ValueError) as exc:
         raise InvalidPatientDataError(
             f"Поле «{name}» має бути цілим числом."
@@ -112,7 +129,7 @@ def _parse_int_field(name: str, value, min_val: int, max_val: int) -> int:
     return parsed
 
 
-def validate_person_data(data: dict) -> dict:
+def validate_person_data(data: dict[str, Any]) -> dict[str, Any]:
     """
     Перевіряє та нормалізує словник з даними пацієнта.
 
@@ -170,13 +187,15 @@ def validate_person_data(data: dict) -> dict:
         "blood_glucose_level": _parse_int_field(
             "blood_glucose_level",
             data["blood_glucose_level"],
-            glucose_min,
-            glucose_max,
+            int(glucose_min),
+            int(glucose_max),
         ),
     }
 
 
-def parse_prediction_threshold(value, default: float | None = None) -> float:
+def parse_prediction_threshold(
+    value: object, default: float | None = None
+) -> float:
     """
     Перетворює значення слайдера (відсотки) у поріг 0.0–1.0.
 
@@ -203,7 +222,7 @@ def parse_prediction_threshold(value, default: float | None = None) -> float:
         return float(default)
 
     try:
-        percent = float(value)
+        percent = _to_float(value)
     except (TypeError, ValueError) as exc:
         raise InvalidPatientDataError(
             "Поріг ймовірності має бути числом."

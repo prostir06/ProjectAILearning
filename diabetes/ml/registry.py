@@ -216,8 +216,8 @@ def compute_scale_pos_weight(y) -> float:
 
     counts_by_class = dict(zip(unique.tolist(), counts.tolist(), strict=True))
     # Підтримуємо як 0/1 (int), так і 0.0/1.0 після astype(float).
-    pos_count = counts_by_class.get(1.0, counts_by_class.get(1, 0))
-    neg_count = counts_by_class.get(0.0, counts_by_class.get(0, 0))
+    pos_count = int(counts_by_class.get(1.0) or counts_by_class.get(1) or 0)
+    neg_count = int(counts_by_class.get(0.0) or counts_by_class.get(0) or 0)
 
     if pos_count < 1 or neg_count < 1:
         logger.warning(

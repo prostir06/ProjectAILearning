@@ -110,6 +110,8 @@ python train.py --models rf,xgb --serve-best-only
 
 ```bash
 python -m pytest tests/ -v
+python -m ruff check diabetes run.py train.py tests
+python -m mypy
 ```
 
 ## Docker
